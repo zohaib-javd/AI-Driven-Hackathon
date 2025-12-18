@@ -41,7 +41,13 @@
       "Bash(npx docusaurus start:*)",
       "Bash(git add:*)",
       "Bash(timeout:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Physical AI Humanoid Robotics Book Project\n\nComplete educational platform for learning humanoid robotics with:\n\n- Module 1: ROS2 Nervous System - nodes, topics, services, URDF\n- Module 2: Digital Twin Simulation - Gazebo, Unity, sensors\n- Module 3: Isaac AI Brain - NVIDIA Isaac Sim, Nav2, perception\n- Module 4: VLA Capstone - Vision-Language-Action integration\n\nFeatures:\n- Docusaurus-based documentation site\n- RAG-powered chatbot backend \\(FastAPI + LangChain\\)\n- Simulation examples for each module\n- Docker deployment configuration\n- Vercel/Railway deployment configs\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Physical AI Humanoid Robotics Book Project\n\nComplete educational platform for learning humanoid robotics with:\n\n- Module 1: ROS2 Nervous System - nodes, topics, services, URDF\n- Module 2: Digital Twin Simulation - Gazebo, Unity, sensors\n- Module 3: Isaac AI Brain - NVIDIA Isaac Sim, Nav2, perception\n- Module 4: VLA Capstone - Vision-Language-Action integration\n\nFeatures:\n- Docusaurus-based documentation site\n- RAG-powered chatbot backend \\(FastAPI + LangChain\\)\n- Simulation examples for each module\n- Docker deployment configuration\n- Vercel/Railway deployment configs\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "mcp__vercel__list_teams",
+      "mcp__vercel__deploy_to_vercel",
+      "Bash(npx vercel --version)",
+      "Bash(npx vercel:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Vercel deployment - disable git-based last update time\n\nDisable showLastUpdateTime and showLastUpdateAuthor in Docusaurus\nconfig to fix build errors on Vercel \\(no git history in deploy env\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

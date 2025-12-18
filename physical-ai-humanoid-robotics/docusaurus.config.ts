@@ -52,8 +52,8 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           remarkPlugins: [remarkMath],
           rehypePlugins: [rehypeKatex],
-          showLastUpdateTime: true,
-          showLastUpdateAuthor: true,
+          showLastUpdateTime: false,
+          showLastUpdateAuthor: false,
         },
         blog: false,
         theme: {
