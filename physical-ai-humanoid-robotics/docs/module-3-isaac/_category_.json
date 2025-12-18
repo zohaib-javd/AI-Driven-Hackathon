@@ -1,0 +1,8 @@
+{
+  "label": "Module 3: AI-Robot Brain (NVIDIA Isaac)",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Learn to use NVIDIA Isaac Sim for robot simulation, Isaac ROS for GPU-accelerated perception, and Nav2 for autonomous navigation. This module covers the complete pipeline from simulation to real-world deployment."
+  }
+}

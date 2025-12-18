@@ -1,0 +1,368 @@
+openapi: 3.0.0
+info:
+  title: Physical AI & Humanoid Robotics Book RAG API
+  description: API for the Retrieval-Augmented Generation chatbot that answers questions about the Physical AI & Humanoid Robotics book content
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.physical-ai-humanoid-robotics.com
+    description: Production server
+
+paths:
+  /query:
+    post:
+      summary: Query the RAG system with a question about the book
+      description: Submit a question to the RAG system which will search the book content and generate an answer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Successful response with answer and sources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Check if the RAG API is running and healthy
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /search:
+    post:
+      summary: Search book content
+      description: Search the book content for relevant passages without generating a full answer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search results with relevant passages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents:
+    get:
+      summary: List available documents
+      description: Get a list of all book modules and chapters available in the RAG system
+      responses:
+        '200':
+          description: List of available documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentsResponse'
+
+components:
+  schemas:
+    QueryRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: The question to ask about the book content
+          example: "How does ROS 2 differ from ROS 1 in terms of architecture?"
+        max_tokens:
+          type: integer
+          description: Maximum number of tokens in the response
+          default: 500
+          example: 500
+        temperature:
+          type: number
+          description: Temperature for response generation (0.0 to 1.0)
+          default: 0.7
+          example: 0.7
+        grounding_threshold:
+          type: number
+          description: Minimum confidence threshold for grounding (0.0 to 1.0)
+          default: 0.8
+          example: 0.8
+
+    QueryResponse:
+      type: object
+      required:
+        - query
+        - answer
+        - grounding_accuracy
+        - sources
+        - timestamp
+      properties:
+        query:
+          type: string
+          description: The original query
+          example: "How does ROS 2 differ from ROS 1 in terms of architecture?"
+        answer:
+          type: string
+          description: The generated answer based on book content
+          example: "ROS 2 uses a DDS-based middleware architecture instead of the centralized master architecture in ROS 1..."
+        grounding_accuracy:
+          type: number
+          description: Confidence score for how well the answer is grounded in the book content (0.0 to 1.0)
+          example: 0.95
+        sources:
+          type: array
+          description: List of source documents used to generate the answer
+          items:
+            $ref: '#/components/schemas/SourceDocument'
+        timestamp:
+          type: string
+          format: date-time
+          description: When the response was generated
+          example: "2025-12-15T10:30:00Z"
+
+    SearchRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: The search query
+          example: "ROS 2 architecture"
+        top_k:
+          type: integer
+          description: Number of results to return
+          default: 5
+          example: 5
+        filters:
+          type: object
+          description: Filters to apply to the search
+          properties:
+            module:
+              type: string
+              description: Filter by specific module
+              example: "module-1-ros"
+            chapter:
+              type: string
+              description: Filter by specific chapter
+              example: "module-1-chapter-2"
+
+    SearchResponse:
+      type: object
+      required:
+        - query
+        - results
+        - timestamp
+      properties:
+        query:
+          type: string
+          description: The original search query
+          example: "ROS 2 architecture"
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        timestamp:
+          type: string
+          format: date-time
+          description: When the search was performed
+          example: "2025-12-15T10:30:00Z"
+
+    SearchResult:
+      type: object
+      required:
+        - id
+        - content
+        - score
+        - metadata
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the document chunk
+          example: "doc-123-chunk-456"
+        content:
+          type: string
+          description: The content of the document chunk
+          example: "ROS 2 uses a DDS-based middleware architecture instead of the centralized master architecture in ROS 1..."
+        score:
+          type: number
+          description: Relevance score for the result
+          example: 0.87
+        metadata:
+          $ref: '#/components/schemas/DocumentMetadata'
+
+    SourceDocument:
+      type: object
+      required:
+        - id
+        - title
+        - url
+        - relevance_score
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the source document
+          example: "module-1-chapter-2"
+        title:
+          type: string
+          description: Title of the source document
+          example: "DDS & ROS Architecture"
+        url:
+          type: string
+          description: URL to the source document in the book
+          example: "https://physical-ai-humanoid-robotics.com/docs/module-1-ros/chapter-2"
+        relevance_score:
+          type: number
+          description: How relevant this document was to the answer
+          example: 0.92
+
+    DocumentMetadata:
+      type: object
+      properties:
+        module_id:
+          type: string
+          description: ID of the module containing the content
+          example: "module-1-ros"
+        chapter_id:
+          type: string
+          description: ID of the chapter containing the content
+          example: "module-1-chapter-2"
+        page_number:
+          type: integer
+          description: Page number in the original document
+          example: 45
+        section_title:
+          type: string
+          description: Title of the section containing the content
+          example: "DDS Implementation Details"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          description: Health status of the API
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the health check was performed
+          example: "2025-12-15T10:30:00Z"
+        details:
+          type: object
+          description: Additional health details
+          properties:
+            vector_db_status:
+              type: string
+              example: "connected"
+            model_status:
+              type: string
+              example: "loaded"
+            content_index_status:
+              type: string
+              example: "ready"
+
+    DocumentsResponse:
+      type: object
+      required:
+        - documents
+        - total_count
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSummary'
+        total_count:
+          type: integer
+          description: Total number of documents in the system
+          example: 56
+        modules_count:
+          type: integer
+          description: Number of modules available
+          example: 4
+
+    DocumentSummary:
+      type: object
+      required:
+        - id
+        - title
+        - type
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the document
+          example: "module-1-ros"
+        title:
+          type: string
+          description: Title of the document
+          example: "Module 1: The Robotic Nervous System (ROS 2)"
+        type:
+          type: string
+          description: Type of document (module, chapter)
+          enum: [module, chapter]
+          example: "module"
+        description:
+          type: string
+          description: Brief description of the document
+          example: "Introduction to ROS 2 fundamentals and architecture"
+        chapter_count:
+          type: integer
+          description: Number of chapters in the module (for module type)
+          example: 14
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "ValidationError"
+        message:
+          type: string
+          description: Detailed error message
+          example: "Query field is required and cannot be empty"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+          example: "2025-12-15T10:30:00Z"

@@ -1,0 +1,822 @@
+---
+sidebar_position: 12
+title: "Chapter 12: Mini Project - Joint Control"
+description: Hands-on mini project for humanoid joint control in ROS 2
+---
+
+# Chapter 12: Mini Project - Humanoid Joint Control
+
+:::note Learning Objectives
+By the end of this chapter, you will be able to:
+- Build a complete joint control system for a humanoid robot
+- Implement a joint state publisher and controller
+- Create a command interface for joint movements
+- Integrate visualization with RViz
+- Apply all Module 1 concepts in a cohesive project
+:::
+
+## Project Overview
+
+In this mini-project, we will build a complete joint control system that allows interactive control of a humanoid robot's joints:
+
+```mermaid
+graph TB
+    subgraph Project["Joint Control System"]
+        UI[Command Interface]
+        Controller[Joint Controller Node]
+        StatePublisher[Joint State Publisher]
+        URDF[Robot Description]
+        RViz[RViz Visualization]
+    end
+
+    subgraph Topics["ROS 2 Topics"]
+        Cmd[/joint_commands]
+        State[/joint_states]
+        Desc[/robot_description]
+        TF[/tf]
+    end
+
+    UI -->|commands| Cmd
+    Cmd --> Controller
+    Controller -->|controls| StatePublisher
+    StatePublisher --> State
+    State --> TF
+    URDF --> Desc
+    Desc --> RViz
+    TF --> RViz
+```
+
+### Project Components
+
+| Component | Description | File |
+|-----------|-------------|------|
+| **Joint Controller** | Processes commands, applies limits | `joint_controller.py` |
+| **State Publisher** | Publishes joint states to TF | `joint_state_publisher.py` |
+| **Command Interface** | Service/Topic for joint commands | `joint_command_interface.py` |
+| **Launch File** | Orchestrates all nodes | `joint_control.launch.py` |
+| **Configuration** | Joint limits and parameters | `joint_config.yaml` |
+
+## Package Structure
+
+```text
+humanoid_joint_control/
+├── package.xml
+├── setup.py
+├── humanoid_joint_control/
+│   ├── __init__.py
+│   ├── joint_controller.py
+│   ├── joint_state_manager.py
+│   └── joint_command_interface.py
+├── launch/
+│   └── joint_control.launch.py
+├── config/
+│   ├── joint_config.yaml
+│   └── rviz_config.rviz
+└── srv/
+    └── MoveJoint.srv
+```
+
+## Custom Service Definition
+
+```text title="srv/MoveJoint.srv"
+# Request
+string joint_name
+float64 target_position
+float64 duration
+---
+# Response
+bool success
+string message
+float64 final_position
+```
+
+## Joint Configuration
+
+```yaml title="config/joint_config.yaml"
+joint_controller:
+  ros__parameters:
+    # Control rate
+    control_rate: 100.0
+
+    # Joint definitions
+    joints:
+      - name: "left_shoulder_pitch"
+        lower_limit: -2.5
+        upper_limit: 2.0
+        max_velocity: 2.0
+        default_position: 0.0
+
+      - name: "left_shoulder_roll"
+        lower_limit: -0.5
+        upper_limit: 3.0
+        max_velocity: 2.0
+        default_position: 0.3
+
+      - name: "left_elbow_pitch"
+        lower_limit: 0.0
+        upper_limit: 2.6
+        max_velocity: 2.5
+        default_position: 0.5
+
+      - name: "right_shoulder_pitch"
+        lower_limit: -2.5
+        upper_limit: 2.0
+        max_velocity: 2.0
+        default_position: 0.0
+
+      - name: "right_shoulder_roll"
+        lower_limit: -3.0
+        upper_limit: 0.5
+        max_velocity: 2.0
+        default_position: -0.3
+
+      - name: "right_elbow_pitch"
+        lower_limit: 0.0
+        upper_limit: 2.6
+        max_velocity: 2.5
+        default_position: 0.5
+
+      - name: "left_hip_pitch"
+        lower_limit: -1.5
+        upper_limit: 1.5
+        max_velocity: 1.5
+        default_position: 0.0
+
+      - name: "left_knee_pitch"
+        lower_limit: 0.0
+        upper_limit: 2.5
+        max_velocity: 1.5
+        default_position: 0.0
+
+      - name: "right_hip_pitch"
+        lower_limit: -1.5
+        upper_limit: 1.5
+        max_velocity: 1.5
+        default_position: 0.0
+
+      - name: "right_knee_pitch"
+        lower_limit: 0.0
+        upper_limit: 2.5
+        max_velocity: 1.5
+        default_position: 0.0
+
+      - name: "neck_pitch"
+        lower_limit: -0.8
+        upper_limit: 0.8
+        max_velocity: 1.0
+        default_position: 0.0
+
+      - name: "neck_yaw"
+        lower_limit: -1.2
+        upper_limit: 1.2
+        max_velocity: 1.0
+        default_position: 0.0
+```
+
+## Joint State Manager
+
+```python title="humanoid_joint_control/joint_state_manager.py"
+#!/usr/bin/env python3
+"""Joint state management with interpolation and limits."""
+
+from dataclasses import dataclass
+from typing import Dict, List, Optional
+import math
+
+@dataclass
+class JointConfig:
+    """Configuration for a single joint."""
+    name: str
+    lower_limit: float
+    upper_limit: float
+    max_velocity: float
+    default_position: float
+
+    def clamp_position(self, position: float) -> float:
+        """Clamp position to joint limits."""
+        return max(self.lower_limit, min(self.upper_limit, position))
+
+    def clamp_velocity(self, velocity: float) -> float:
+        """Clamp velocity to max velocity."""
+        return max(-self.max_velocity, min(self.max_velocity, velocity))
+
+@dataclass
+class JointState:
+    """Current state of a joint."""
+    position: float = 0.0
+    velocity: float = 0.0
+    effort: float = 0.0
+    target_position: Optional[float] = None
+    target_time: float = 0.0
+
+class JointStateManager:
+    """Manages joint states with interpolation."""
+
+    def __init__(self):
+        self.joints: Dict[str, JointConfig] = {}
+        self.states: Dict[str, JointState] = {}
+
+    def add_joint(self, config: JointConfig):
+        """Add a joint configuration."""
+        self.joints[config.name] = config
+        self.states[config.name] = JointState(
+            position=config.default_position
+        )
+
+    def set_target(self, joint_name: str, target: float, duration: float) -> bool:
+        """Set target position for a joint."""
+        if joint_name not in self.joints:
+            return False
+
+        config = self.joints[joint_name]
+        state = self.states[joint_name]
+
+        # Clamp target to limits
+        clamped_target = config.clamp_position(target)
+
+        # Calculate required velocity
+        distance = abs(clamped_target - state.position)
+        if duration > 0:
+            required_velocity = distance / duration
+            if required_velocity > config.max_velocity:
+                # Extend duration to respect velocity limit
+                duration = distance / config.max_velocity
+
+        state.target_position = clamped_target
+        state.target_time = duration
+
+        return True
+
+    def update(self, dt: float) -> Dict[str, JointState]:
+        """Update all joint states for time step dt."""
+        for name, state in self.states.items():
+            if state.target_position is not None:
+                config = self.joints[name]
+
+                # Calculate movement
+                distance = state.target_position - state.position
+                if abs(distance) < 0.001:
+                    # Target reached
+                    state.position = state.target_position
+                    state.velocity = 0.0
+                    state.target_position = None
+                else:
+                    # Move towards target
+                    direction = 1.0 if distance > 0 else -1.0
+                    velocity = min(
+                        config.max_velocity,
+                        abs(distance) / max(state.target_time, dt)
+                    )
+                    state.velocity = direction * velocity
+                    state.position += state.velocity * dt
+                    state.target_time = max(0, state.target_time - dt)
+
+                # Clamp final position
+                state.position = config.clamp_position(state.position)
+
+        return self.states
+
+    def get_joint_names(self) -> List[str]:
+        """Get list of joint names."""
+        return list(self.joints.keys())
+
+    def get_positions(self) -> List[float]:
+        """Get list of current positions."""
+        return [self.states[name].position for name in self.joints]
+
+    def get_velocities(self) -> List[float]:
+        """Get list of current velocities."""
+        return [self.states[name].velocity for name in self.joints]
+```
+
+## Joint Controller Node
+
+```python title="humanoid_joint_control/joint_controller.py"
+#!/usr/bin/env python3
+"""Main joint controller node."""
+
+import rclpy
+from rclpy.node import Node
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+from rcl_interfaces.msg import ParameterDescriptor
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64MultiArray
+from humanoid_joint_control.joint_state_manager import (
+    JointStateManager,
+    JointConfig
+)
+
+# Custom service (would be generated from .srv file)
+# from humanoid_joint_control.srv import MoveJoint
+
+class JointControllerNode(Node):
+    """ROS 2 node for humanoid joint control."""
+
+    def __init__(self):
+        super().__init__('joint_controller')
+
+        # Callback groups
+        self.timer_group = MutuallyExclusiveCallbackGroup()
+        self.service_group = ReentrantCallbackGroup()
+
+        # Declare parameters
+        self.declare_parameter('control_rate', 100.0)
+
+        # Initialize joint state manager
+        self.manager = JointStateManager()
+        self.load_joint_config()
+
+        # Publishers
+        self.joint_state_pub = self.create_publisher(
+            JointState,
+            'joint_states',
+            10
+        )
+
+        # Subscribers for commands
+        self.command_sub = self.create_subscription(
+            Float64MultiArray,
+            'joint_commands',
+            self.command_callback,
+            10,
+            callback_group=self.service_group
+        )
+
+        # Control loop timer
+        rate = self.get_parameter('control_rate').value
+        self.dt = 1.0 / rate
+        self.timer = self.create_timer(
+            self.dt,
+            self.control_loop,
+            callback_group=self.timer_group
+        )
+
+        self.get_logger().info(
+            f'Joint controller started at {rate} Hz with '
+            f'{len(self.manager.joints)} joints'
+        )
+
+    def load_joint_config(self):
+        """Load joint configuration from parameters."""
+        # In real implementation, load from YAML via parameters
+        # For demo, use hardcoded config
+        joints = [
+            JointConfig('left_shoulder_pitch', -2.5, 2.0, 2.0, 0.0),
+            JointConfig('left_shoulder_roll', -0.5, 3.0, 2.0, 0.3),
+            JointConfig('left_elbow_pitch', 0.0, 2.6, 2.5, 0.5),
+            JointConfig('right_shoulder_pitch', -2.5, 2.0, 2.0, 0.0),
+            JointConfig('right_shoulder_roll', -3.0, 0.5, 2.0, -0.3),
+            JointConfig('right_elbow_pitch', 0.0, 2.6, 2.5, 0.5),
+            JointConfig('left_hip_pitch', -1.5, 1.5, 1.5, 0.0),
+            JointConfig('left_knee_pitch', 0.0, 2.5, 1.5, 0.0),
+            JointConfig('right_hip_pitch', -1.5, 1.5, 1.5, 0.0),
+            JointConfig('right_knee_pitch', 0.0, 2.5, 1.5, 0.0),
+            JointConfig('neck_pitch', -0.8, 0.8, 1.0, 0.0),
+            JointConfig('neck_yaw', -1.2, 1.2, 1.0, 0.0),
+        ]
+
+        for joint in joints:
+            self.manager.add_joint(joint)
+
+    def control_loop(self):
+        """Main control loop - update and publish joint states."""
+        # Update joint states
+        states = self.manager.update(self.dt)
+
+        # Create and publish JointState message
+        msg = JointState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.name = self.manager.get_joint_names()
+        msg.position = self.manager.get_positions()
+        msg.velocity = self.manager.get_velocities()
+        msg.effort = [0.0] * len(msg.name)
+
+        self.joint_state_pub.publish(msg)
+
+    def command_callback(self, msg: Float64MultiArray):
+        """Handle joint command messages."""
+        # Expected format: [joint_index, target_position, duration]
+        if len(msg.data) < 3:
+            self.get_logger().warn('Invalid command format')
+            return
+
+        joint_idx = int(msg.data[0])
+        target = msg.data[1]
+        duration = msg.data[2]
+
+        joint_names = self.manager.get_joint_names()
+        if 0 <= joint_idx < len(joint_names):
+            joint_name = joint_names[joint_idx]
+            success = self.manager.set_target(joint_name, target, duration)
+            if success:
+                self.get_logger().info(
+                    f'Moving {joint_name} to {target:.2f} over {duration:.2f}s'
+                )
+        else:
+            self.get_logger().warn(f'Invalid joint index: {joint_idx}')
+
+    def move_joint(self, joint_name: str, target: float, duration: float = 1.0) -> bool:
+        """Move a joint to target position."""
+        return self.manager.set_target(joint_name, target, duration)
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    node = JointControllerNode()
+
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
+
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        executor.shutdown()
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Joint Command Interface
+
+```python title="humanoid_joint_control/joint_command_interface.py"
+#!/usr/bin/env python3
+"""Interactive command interface for joint control."""
+
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Float64MultiArray
+import sys
+
+class JointCommandInterface(Node):
+    """Interactive interface for sending joint commands."""
+
+    def __init__(self):
+        super().__init__('joint_command_interface')
+
+        self.command_pub = self.create_publisher(
+            Float64MultiArray,
+            'joint_commands',
+            10
+        )
+
+        self.joint_names = [
+            'left_shoulder_pitch',
+            'left_shoulder_roll',
+            'left_elbow_pitch',
+            'right_shoulder_pitch',
+            'right_shoulder_roll',
+            'right_elbow_pitch',
+            'left_hip_pitch',
+            'left_knee_pitch',
+            'right_hip_pitch',
+            'right_knee_pitch',
+            'neck_pitch',
+            'neck_yaw'
+        ]
+
+        self.get_logger().info('Joint Command Interface Ready')
+        self.print_help()
+
+    def print_help(self):
+        """Print available commands."""
+        print('\n=== Joint Command Interface ===')
+        print('Available joints:')
+        for i, name in enumerate(self.joint_names):
+            print(f'  {i}: {name}')
+        print('\nCommands:')
+        print('  move <joint_idx> <position> [duration]')
+        print('  wave - Execute wave gesture')
+        print('  bow - Execute bow gesture')
+        print('  home - Return to home position')
+        print('  help - Show this help')
+        print('  quit - Exit')
+        print()
+
+    def send_command(self, joint_idx: int, position: float, duration: float = 1.0):
+        """Send a joint command."""
+        msg = Float64MultiArray()
+        msg.data = [float(joint_idx), position, duration]
+        self.command_pub.publish(msg)
+
+    def execute_wave(self):
+        """Execute a wave gesture."""
+        import time
+
+        self.get_logger().info('Executing wave gesture...')
+
+        # Raise arm
+        self.send_command(0, -1.5, 0.5)  # left_shoulder_pitch
+        self.send_command(1, 1.5, 0.5)   # left_shoulder_roll
+        time.sleep(0.6)
+
+        # Wave back and forth
+        for _ in range(3):
+            self.send_command(2, 1.5, 0.3)  # left_elbow_pitch
+            time.sleep(0.4)
+            self.send_command(2, 0.5, 0.3)
+            time.sleep(0.4)
+
+        # Lower arm
+        self.send_command(0, 0.0, 0.5)
+        self.send_command(1, 0.3, 0.5)
+        self.send_command(2, 0.5, 0.5)
+
+    def execute_bow(self):
+        """Execute a bow gesture."""
+        import time
+
+        self.get_logger().info('Executing bow gesture...')
+
+        # Bow forward
+        self.send_command(6, 0.8, 1.0)   # left_hip_pitch
+        self.send_command(8, 0.8, 1.0)   # right_hip_pitch
+        self.send_command(10, -0.3, 1.0) # neck_pitch
+        time.sleep(1.5)
+
+        # Hold
+        time.sleep(0.5)
+
+        # Return to standing
+        self.send_command(6, 0.0, 1.0)
+        self.send_command(8, 0.0, 1.0)
+        self.send_command(10, 0.0, 1.0)
+
+    def execute_home(self):
+        """Return all joints to home position."""
+        self.get_logger().info('Returning to home position...')
+
+        for i in range(len(self.joint_names)):
+            default_positions = [0.0, 0.3, 0.5, 0.0, -0.3, 0.5,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            self.send_command(i, default_positions[i], 1.0)
+
+    def run_interactive(self):
+        """Run interactive command loop."""
+        while rclpy.ok():
+            try:
+                cmd = input('> ').strip().lower()
+
+                if not cmd:
+                    continue
+
+                parts = cmd.split()
+                command = parts[0]
+
+                if command == 'quit' or command == 'q':
+                    break
+                elif command == 'help' or command == 'h':
+                    self.print_help()
+                elif command == 'wave':
+                    self.execute_wave()
+                elif command == 'bow':
+                    self.execute_bow()
+                elif command == 'home':
+                    self.execute_home()
+                elif command == 'move':
+                    if len(parts) >= 3:
+                        joint_idx = int(parts[1])
+                        position = float(parts[2])
+                        duration = float(parts[3]) if len(parts) > 3 else 1.0
+                        self.send_command(joint_idx, position, duration)
+                    else:
+                        print('Usage: move <joint_idx> <position> [duration]')
+                else:
+                    print(f'Unknown command: {command}')
+
+                # Process callbacks
+                rclpy.spin_once(self, timeout_sec=0.01)
+
+            except ValueError as e:
+                print(f'Invalid input: {e}')
+            except KeyboardInterrupt:
+                break
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = JointCommandInterface()
+
+    try:
+        node.run_interactive()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Launch File
+
+```python title="launch/joint_control.launch.py"
+#!/usr/bin/env python3
+"""Launch file for humanoid joint control system."""
+
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
+
+def generate_launch_description():
+    """Generate launch description for joint control system."""
+
+    # Package paths
+    pkg_joint_control = FindPackageShare('humanoid_joint_control')
+    pkg_description = FindPackageShare('humanoid_description')
+
+    # Arguments
+    use_rviz_arg = DeclareLaunchArgument(
+        'use_rviz',
+        default_value='true',
+        description='Launch RViz'
+    )
+
+    # Robot description
+    robot_description = Command([
+        'xacro ',
+        PathJoinSubstitution([
+            pkg_description, 'urdf', 'humanoid.urdf.xacro'
+        ])
+    ])
+
+    # Robot state publisher
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        output='screen',
+        parameters=[{'robot_description': robot_description}]
+    )
+
+    # Joint controller node
+    joint_controller = Node(
+        package='humanoid_joint_control',
+        executable='joint_controller',
+        name='joint_controller',
+        output='screen',
+        parameters=[
+            PathJoinSubstitution([
+                pkg_joint_control, 'config', 'joint_config.yaml'
+            ])
+        ]
+    )
+
+    # RViz
+    rviz = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        arguments=[
+            '-d',
+            PathJoinSubstitution([
+                pkg_joint_control, 'config', 'rviz_config.rviz'
+            ])
+        ]
+    )
+
+    return LaunchDescription([
+        use_rviz_arg,
+        robot_state_publisher,
+        joint_controller,
+        rviz
+    ])
+```
+
+## Testing the System
+
+### Running the Project
+
+```bash
+# Terminal 1: Launch the control system
+ros2 launch humanoid_joint_control joint_control.launch.py
+
+# Terminal 2: Run the command interface
+ros2 run humanoid_joint_control joint_command_interface
+
+# Terminal 3: Monitor joint states
+ros2 topic echo /joint_states
+```
+
+### Example Commands
+
+```bash
+# In the command interface:
+> move 0 -1.0 2.0    # Move left shoulder pitch to -1.0 rad over 2 seconds
+> move 2 1.5 1.0     # Move left elbow to 1.5 rad over 1 second
+> wave               # Execute wave gesture
+> bow                # Execute bow gesture
+> home               # Return to home position
+```
+
+## Extending the Project
+
+### Add Position Feedback
+
+```python title="Add to joint_controller.py"
+from std_msgs.msg import String
+
+# In __init__:
+self.status_pub = self.create_publisher(String, 'joint_status', 10)
+
+# In control_loop:
+status_msg = String()
+moving_joints = [
+    name for name, state in states.items()
+    if state.target_position is not None
+]
+if moving_joints:
+    status_msg.data = f"Moving: {', '.join(moving_joints)}"
+else:
+    status_msg.data = "Idle"
+self.status_pub.publish(status_msg)
+```
+
+### Add Trajectory Support
+
+```python title="Trajectory execution"
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+
+class TrajectoryExecutor:
+    """Execute joint trajectories."""
+
+    def __init__(self, manager: JointStateManager):
+        self.manager = manager
+        self.current_trajectory = None
+        self.trajectory_start_time = None
+        self.current_point_idx = 0
+
+    def set_trajectory(self, trajectory: JointTrajectory):
+        """Set a new trajectory to execute."""
+        self.current_trajectory = trajectory
+        self.trajectory_start_time = None
+        self.current_point_idx = 0
+
+    def update(self, current_time: float) -> bool:
+        """Update trajectory execution. Returns True if complete."""
+        if self.current_trajectory is None:
+            return True
+
+        if self.trajectory_start_time is None:
+            self.trajectory_start_time = current_time
+
+        elapsed = current_time - self.trajectory_start_time
+
+        # Find current trajectory point
+        points = self.current_trajectory.points
+        while (self.current_point_idx < len(points) - 1 and
+               elapsed >= points[self.current_point_idx + 1].time_from_start.sec):
+            self.current_point_idx += 1
+
+        if self.current_point_idx >= len(points):
+            self.current_trajectory = None
+            return True
+
+        # Set targets from current point
+        point = points[self.current_point_idx]
+        for i, name in enumerate(self.current_trajectory.joint_names):
+            if i < len(point.positions):
+                self.manager.set_target(name, point.positions[i], 0.1)
+
+        return False
+```
+
+## Summary
+
+In this mini-project, you built:
+
+- A complete **joint state management** system with limits and interpolation
+- A **ROS 2 node** for joint control with configurable parameters
+- An **interactive command interface** for testing
+- **Pre-defined gestures** (wave, bow) demonstrating coordinated motion
+- A **launch file** integrating all components with RViz
+
+## Key Takeaways
+
+:::tip Remember
+1. **Separate concerns**: Joint state management, ROS interface, and UI are separate
+2. **Use callbacks groups** for thread-safe concurrent operations
+3. **Validate inputs**: Always check joint limits and valid indices
+4. **Test incrementally**: Start with single joints before complex motions
+5. **Launch files** make deployment reproducible and easy
+:::
+
+## Next Steps
+
+In the final chapter, we will review all Module 1 concepts with a **summary assessment** including MCQs and practical exercises.
+
+---
+
+## Exercises
+
+1. Add a service interface for MoveJoint commands
+2. Implement smooth trajectory interpolation (cubic or quintic)
+3. Add collision checking between links
+4. Create a keyboard teleop node for real-time joint control
+5. Implement joint position saving and replay

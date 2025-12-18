@@ -1,0 +1,464 @@
+/* ChatWidget Styles */
+
+/* Toggle Button */
+.chatToggle {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.chatToggle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 30px rgba(102, 126, 234, 0.6);
+}
+
+/* Chat Window */
+.chatWindow {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: 380px;
+  height: 520px;
+  background: var(--ifm-background-surface-color, #ffffff);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1000;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark mode support */
+[data-theme='dark'] .chatWindow {
+  background: var(--ifm-background-surface-color, #1e1e1e);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Header */
+.chatHeader {
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.headerInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.headerTitle {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.headerStatus {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.closeButton {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Messages Container */
+.messagesContainer {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Message */
+.message {
+  max-width: 85%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.userMessage {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.assistantMessage {
+  align-self: flex-start;
+  background: var(--ifm-color-emphasis-100, #f0f0f0);
+  color: var(--ifm-font-color-base, #1a1a1a);
+  border-bottom-left-radius: 4px;
+}
+
+[data-theme='dark'] .assistantMessage {
+  background: var(--ifm-color-emphasis-200, #2a2a2a);
+}
+
+.messageContent {
+  word-wrap: break-word;
+}
+
+.messageContent code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+[data-theme='dark'] .messageContent code {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.messageContent li {
+  margin-left: 16px;
+  list-style: disc;
+}
+
+/* Citation Button */
+.citationButton {
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  border-radius: 12px;
+  color: #667eea;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.citationButton:hover {
+  background: rgba(102, 126, 234, 0.2);
+}
+
+/* Loading Dots */
+.loadingDots {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.loadingDots span {
+  width: 8px;
+  height: 8px;
+  background: #667eea;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.loadingDots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.loadingDots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+/* Input Container */
+.inputContainer {
+  padding: 16px;
+  border-top: 1px solid var(--ifm-color-emphasis-200, #e0e0e0);
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid var(--ifm-color-emphasis-300, #d0d0d0);
+  border-radius: 24px;
+  font-size: 14px;
+  outline: none;
+  background: var(--ifm-background-color, #ffffff);
+  color: var(--ifm-font-color-base, #1a1a1a);
+  transition: border-color 0.2s;
+}
+
+.input:focus {
+  border-color: #667eea;
+}
+
+.input::placeholder {
+  color: var(--ifm-color-emphasis-500, #888);
+}
+
+.sendButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.sendButton:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.sendButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Citations Modal */
+.citationsOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.citationsModal {
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  background: var(--ifm-background-surface-color, #ffffff);
+  border-radius: 16px;
+  overflow: hidden;
+  animation: scaleIn 0.2s ease;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+[data-theme='dark'] .citationsModal {
+  background: var(--ifm-background-surface-color, #1e1e1e);
+}
+
+.citationsHeader {
+  padding: 16px;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200, #e0e0e0);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.citationsHeader h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.citationsHeader button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--ifm-font-color-base, #1a1a1a);
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.citationsHeader button:hover {
+  opacity: 1;
+}
+
+.citationsList {
+  padding: 16px;
+  overflow-y: auto;
+  max-height: calc(80vh - 60px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.citationItem {
+  padding: 16px;
+  background: var(--ifm-color-emphasis-100, #f5f5f5);
+  border-radius: 12px;
+}
+
+[data-theme='dark'] .citationItem {
+  background: var(--ifm-color-emphasis-200, #2a2a2a);
+}
+
+.citationTitle {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.citationModule {
+  font-size: 12px;
+  color: #667eea;
+  text-transform: capitalize;
+  margin-bottom: 8px;
+}
+
+.citationExcerpt {
+  font-size: 13px;
+  color: var(--ifm-font-color-secondary, #666);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.citationScore {
+  font-size: 12px;
+  color: var(--ifm-color-emphasis-600, #888);
+}
+
+/* Voice Button */
+.voiceButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--ifm-color-emphasis-200, #e0e0e0);
+  border: none;
+  color: var(--ifm-font-color-base, #1a1a1a);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.voiceButton:hover:not(:disabled) {
+  background: var(--ifm-color-emphasis-300, #d0d0d0);
+}
+
+.voiceButton.recording {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+.voiceButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-theme='dark'] .voiceButton {
+  background: var(--ifm-color-emphasis-300, #3a3a3a);
+  color: var(--ifm-font-color-base, #e0e0e0);
+}
+
+[data-theme='dark'] .voiceButton:hover:not(:disabled) {
+  background: var(--ifm-color-emphasis-400, #4a4a4a);
+}
+
+/* Transcription indicator */
+.transcriptionIndicator {
+  font-size: 12px;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.transcriptionIndicator span {
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+  .chatWindow {
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .chatToggle {
+    bottom: 16px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+  }
+}

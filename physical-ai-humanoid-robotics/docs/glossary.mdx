@@ -1,0 +1,280 @@
+---
+sidebar_position: 100
+title: Glossary
+description: Comprehensive glossary of terms used in Physical AI & Humanoid Robotics
+---
+
+# Glossary
+
+A comprehensive reference of terms used throughout this book, organized by topic.
+
+## ROS 2 Terms
+
+### Node
+An executable process that performs a specific computation. Nodes communicate using topics, services, and actions.
+
+### Topic
+A named bus for message passing using the publish-subscribe pattern. Publishers send messages to topics; subscribers receive them.
+
+### Publisher
+A node interface that sends messages to a topic at regular intervals or on events.
+
+### Subscriber
+A node interface that receives messages from a topic via a callback function.
+
+### Service
+A synchronous communication pattern where a client sends a request and waits for a response from a server.
+
+### Action
+An asynchronous communication pattern for long-running tasks, providing goal, feedback, and result interfaces.
+
+### Message
+A data structure used for communication between nodes. Defined in `.msg` files.
+
+### DDS (Data Distribution Service)
+The underlying middleware that provides ROS 2's publish-subscribe communication, discovery, and QoS features.
+
+### QoS (Quality of Service)
+Policies that control message delivery behavior including reliability, durability, history, and deadlines.
+
+### URDF (Unified Robot Description Format)
+An XML format for describing robot geometry, joints, links, and physical properties.
+
+### TF (Transform)
+A system for tracking coordinate frames over time, essential for relating sensor data to robot parts.
+
+### rclpy
+The ROS 2 Python client library for creating nodes and interfaces.
+
+### rclcpp
+The ROS 2 C++ client library for high-performance applications.
+
+### Executor
+The component that processes callbacks from timers, subscribers, services, and actions.
+
+### Lifecycle Node
+A node with managed states (unconfigured, inactive, active, finalized) for controlled startup/shutdown.
+
+### Launch File
+A Python script that configures and starts multiple nodes with parameters.
+
+---
+
+## Simulation Terms
+
+### Digital Twin
+A virtual replica of a physical system that mirrors its behavior in real-time.
+
+### SDF (Simulation Description Format)
+An XML format used by Gazebo to describe worlds, models, and physics properties.
+
+### Physics Engine
+Software that simulates physical phenomena like gravity, collisions, and friction.
+
+### Rigid Body
+An idealized solid body where deformation is neglected; the basis of most robot simulation.
+
+### Collision Geometry
+Simplified shapes used for collision detection, often simpler than visual geometry.
+
+### Inertia Tensor
+A 3×3 matrix describing how mass is distributed in a rigid body, affecting rotational dynamics.
+
+### Ray Tracing
+A rendering technique that simulates light paths for photorealistic images.
+
+### Domain Randomization
+Varying simulation parameters (textures, lighting, physics) to improve real-world transfer.
+
+### Sim-to-Real Transfer
+The process of deploying algorithms trained in simulation to physical robots.
+
+---
+
+## NVIDIA Isaac Terms
+
+### Isaac Sim
+NVIDIA's photorealistic robotics simulation platform built on Omniverse.
+
+### Omniverse
+NVIDIA's platform for 3D design collaboration and simulation based on USD.
+
+### USD (Universal Scene Description)
+A file format for describing 3D scenes, materials, and animations, developed by Pixar.
+
+### Isaac ROS
+GPU-accelerated ROS 2 packages for perception, including VSLAM and object detection.
+
+### VSLAM (Visual SLAM)
+Simultaneous Localization and Mapping using camera images for pose estimation.
+
+### Replicator
+Isaac Sim's tool for generating synthetic training data with automatic labeling.
+
+### Action Graph
+Isaac Sim's node-based programming system for simulation logic.
+
+### PBR (Physically Based Rendering)
+A rendering approach that models real-world light interaction with materials.
+
+---
+
+## Navigation Terms
+
+### Nav2
+The ROS 2 navigation stack for autonomous mobile robot navigation.
+
+### SLAM (Simultaneous Localization and Mapping)
+Algorithms that build a map while simultaneously tracking the robot's position.
+
+### Costmap
+A 2D grid representing the navigability of the environment, with costs for obstacles.
+
+### Global Planner
+Computes a path from start to goal using the full map (e.g., A*, Dijkstra, NavFn).
+
+### Local Planner/Controller
+Generates velocity commands to follow the global path while avoiding obstacles.
+
+### Recovery Behavior
+Actions taken when the robot gets stuck (e.g., backing up, clearing costmaps).
+
+### Odometry
+Estimation of robot position from wheel encoders or visual features.
+
+### Localization
+Determining the robot's position within a known map.
+
+### Goal Pose
+The target position and orientation for navigation.
+
+### Behavior Tree
+A hierarchical structure for organizing robot behaviors, used by Nav2.
+
+---
+
+## VLA Terms
+
+### VLA (Vision-Language-Action)
+A paradigm combining visual perception, language understanding, and robotic action.
+
+### LLM (Large Language Model)
+AI models trained on text data that can understand and generate human language.
+
+### Cognitive Planning
+Using AI reasoning to decompose high-level goals into executable action sequences.
+
+### Intent Extraction
+Identifying the user's goal from natural language input.
+
+### Slot Filling
+Extracting specific parameters (objects, locations) from parsed commands.
+
+### Whisper
+OpenAI's speech-to-text model for transcribing voice commands.
+
+### Prompt Engineering
+Designing input prompts to elicit desired behavior from language models.
+
+### Grounding
+Connecting language understanding to physical objects and actions in the world.
+
+### Action Primitive
+A basic robot action (grasp, move, release) that can be composed into complex behaviors.
+
+### Safety Guardrail
+Constraints that prevent AI systems from generating unsafe or harmful actions.
+
+### End Effector
+The device at the end of a robot arm (gripper, tool) that interacts with objects.
+
+### Manipulation
+Robot actions involving physical interaction with objects (grasping, placing, pushing).
+
+### Grasp Planning
+Computing how to position the gripper to successfully pick up an object.
+
+### Pick and Place
+A manipulation task involving grasping an object and moving it to a new location.
+
+---
+
+## Machine Learning Terms
+
+### Embedding
+A vector representation of data (text, images) that captures semantic meaning.
+
+### Vector Database
+A database optimized for storing and searching vector embeddings.
+
+### Semantic Search
+Finding relevant content based on meaning rather than keyword matching.
+
+### RAG (Retrieval-Augmented Generation)
+Combining information retrieval with language models for grounded responses.
+
+### Fine-tuning
+Adapting a pre-trained model to a specific task using additional training.
+
+### Inference
+Using a trained model to make predictions on new data.
+
+### Object Detection
+Identifying and locating objects in images with bounding boxes.
+
+### Segmentation
+Classifying each pixel of an image into object categories.
+
+### Pose Estimation
+Determining the position and orientation of objects or body parts.
+
+---
+
+## Mathematical Notation
+
+| Symbol | Meaning |
+|--------|---------|
+| $\mathbf{x}$ | Position vector (x, y, z) |
+| $\mathbf{q}$ | Quaternion orientation (w, x, y, z) |
+| $\theta$ | Joint angle |
+| $\omega$ | Angular velocity |
+| $\mathbf{v}$ | Linear velocity |
+| $\mathbf{J}$ | Jacobian matrix |
+| $\mathbf{M}$ | Mass matrix |
+| $\tau$ | Torque |
+| $\mathbf{T}$ | Homogeneous transformation matrix |
+| $SE(3)$ | Special Euclidean group (rigid body transformations) |
+
+---
+
+## Acronyms Quick Reference
+
+| Acronym | Full Form |
+|---------|-----------|
+| ROS | Robot Operating System |
+| DDS | Data Distribution Service |
+| QoS | Quality of Service |
+| URDF | Unified Robot Description Format |
+| SDF | Simulation Description Format |
+| TF | Transform |
+| IMU | Inertial Measurement Unit |
+| LiDAR | Light Detection and Ranging |
+| RGB-D | Red-Green-Blue + Depth |
+| SLAM | Simultaneous Localization and Mapping |
+| VSLAM | Visual SLAM |
+| PBR | Physically Based Rendering |
+| USD | Universal Scene Description |
+| VLA | Vision-Language-Action |
+| LLM | Large Language Model |
+| NLP | Natural Language Processing |
+| API | Application Programming Interface |
+| SDK | Software Development Kit |
+| DOF | Degrees of Freedom |
+| IK | Inverse Kinematics |
+| FK | Forward Kinematics |
+| MPC | Model Predictive Control |
+| PID | Proportional-Integral-Derivative |
+| RAG | Retrieval-Augmented Generation |
+| GPU | Graphics Processing Unit |
+| CUDA | Compute Unified Device Architecture |
+| ROS 2 Humble | ROS 2 distribution (May 2022 - May 2027) |

@@ -1,0 +1,78 @@
+# Docker Compose for Physical AI RAG System
+# Development and production configurations
+
+version: '3.8'
+
+services:
+  # FastAPI Backend
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    container_name: physical-ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - QDRANT_URL=${QDRANT_URL}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-physical_ai_book}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-large}
+      - OPENAI_CHAT_MODEL=${OPENAI_CHAT_MODEL:-gpt-4-turbo-preview}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ../../physical-ai-humanoid-robotics/docs:/app/docs:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - physical-ai-network
+
+  # Local Qdrant (for development)
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: physical-ai-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+    networks:
+      - physical-ai-network
+    profiles:
+      - dev
+
+  # Docusaurus Frontend (for development)
+  frontend:
+    build:
+      context: ../../physical-ai-humanoid-robotics
+      dockerfile: ../deploy/docker/Dockerfile.frontend
+    container_name: physical-ai-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../../physical-ai-humanoid-robotics:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    restart: unless-stopped
+    networks:
+      - physical-ai-network
+    profiles:
+      - dev
+
+networks:
+  physical-ai-network:
+    driver: bridge
+
+volumes:
+  qdrant_data:

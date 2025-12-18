@@ -1,0 +1,81 @@
+# Module 3: NVIDIA Isaac - VSLAM Configuration
+# Physical AI & Humanoid Robotics Textbook
+#
+# Configuration file for Isaac ROS Visual SLAM pipeline.
+# This enables real-time 6-DoF pose estimation from stereo cameras.
+#
+# Usage:
+#   ros2 launch isaac_ros_visual_slam isaac_ros_visual_slam.launch.py \
+#       config_file:=isaac_ros_vslam_config.yaml
+
+# Visual SLAM Node Configuration
+isaac_ros_visual_slam:
+  ros__parameters:
+    # Camera Configuration
+    enable_image_denoising: false
+    rectified_images: true
+    enable_imu_fusion: true
+    gyro_noise_density: 0.00016
+    gyro_random_walk: 0.000022
+    accel_noise_density: 0.0017
+    accel_random_walk: 0.00017
+    calibration_frequency: 200.0
+
+    # SLAM Configuration
+    enable_slam_visualization: true
+    enable_localization_n_mapping: true
+    enable_observations_view: true
+    enable_landmarks_view: true
+    path_max_size: 1024
+
+    # Output Frame IDs
+    map_frame: "map"
+    odom_frame: "odom"
+    base_frame: "base_link"
+
+    # Camera Frame IDs
+    input_left_camera_frame: "camera_left_optical"
+    input_right_camera_frame: "camera_right_optical"
+    input_imu_frame: "imu_link"
+
+    # Performance Tuning
+    image_buffer_size: 100
+    image_qos: "DEFAULT"
+    denoise_input_images: false
+    publish_map_to_odom_tf: true
+    publish_odom_to_base_tf: true
+    invert_map_to_odom_tf: false
+    invert_odom_to_base_tf: false
+
+    # Verbosity
+    verbosity: 1
+
+# AprilTag Detection (for ground truth validation)
+isaac_ros_apriltag:
+  ros__parameters:
+    size: 0.16
+    max_tags: 10
+    tile_size: 4
+
+# Occupancy Grid Mapping
+isaac_ros_occupancy_grid_localizer:
+  ros__parameters:
+    # Map Parameters
+    map_yaml_file: "/path/to/map.yaml"
+    use_sim_time: true
+
+    # Localization Parameters
+    scan_topic: "/scan"
+    transform_tolerance: 0.1
+    initial_pose_x: 0.0
+    initial_pose_y: 0.0
+    initial_pose_a: 0.0
+
+# VSLAM Launch Parameters (for reference)
+# launch_parameters:
+#   camera_namespace: "camera"
+#   left_image_topic: "left/image_raw"
+#   right_image_topic: "right/image_raw"
+#   left_camera_info_topic: "left/camera_info"
+#   right_camera_info_topic: "right/camera_info"
+#   imu_topic: "imu/data"
