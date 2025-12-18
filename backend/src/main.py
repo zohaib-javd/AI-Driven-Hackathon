@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
-from .api import chat_router, ingest_router, voice_router
+from .api import chat_router, ingest_router, voice_router, rag_router
 from .services import get_vectorstore_service
 
 # Configure logging
@@ -87,6 +87,7 @@ AI-powered chatbot for the Physical AI textbook, providing:
     app.include_router(chat_router)
     app.include_router(ingest_router)
     app.include_router(voice_router)
+    app.include_router(rag_router)
 
     # Health check
     @app.get("/health")

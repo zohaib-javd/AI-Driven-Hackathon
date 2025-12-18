@@ -25,7 +25,7 @@ This project delivers a complete educational system for learning robotics, inclu
 │   │   └──────────┘  └──────────┘  └──────────┘  └──────────┘   │  │
 │   │                                                             │  │
 │   │   ┌─────────────────────────────────────────────────────┐  │  │
-│   │   │              ChatWidget (Voice + Text)              │  │  │
+│   │   │  RAG ChatWidget (Text Selection + Book Query)       │  │  │
 │   │   └─────────────────────────────────────────────────────┘  │  │
 │   └─────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
@@ -33,15 +33,15 @@ This project delivers a complete educational system for learning robotics, inclu
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                       FastAPI Backend                               │
-│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                │
-│   │  /api/chat  │  │ /api/voice  │  │ /api/ingest │                │
-│   └─────────────┘  └─────────────┘  └─────────────┘                │
+│   ┌───────────────┐  ┌──────────────────────┐  ┌─────────────┐     │
+│   │ /api/rag/query│  │/api/rag/query-select │  │ /api/ingest │     │
+│   └───────────────┘  └──────────────────────┘  └─────────────┘     │
 │                            │                                        │
 │   ┌────────────────────────┼────────────────────────┐              │
-│   │                  RAG Pipeline                   │              │
+│   │              RAG Pipeline with Cohere           │              │
 │   │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │              │
-│   │  │ Embed    │  │ Retrieve │  │ Agent (GPT-4)│  │              │
-│   │  │ (OpenAI) │  │ (Qdrant) │  │ + Citations  │  │              │
+│   │  │  Embed   │  │ Retrieve │  │ Chat (GPT-4) │  │              │
+│   │  │ (Cohere) │→ │ (Qdrant) │→ │ + Citations  │  │              │
 │   │  └──────────┘  └──────────┘  └──────────────┘  │              │
 │   └─────────────────────────────────────────────────┘              │
 └─────────────────────────────────────────────────────────────────────┘
@@ -51,10 +51,20 @@ This project delivers a complete educational system for learning robotics, inclu
 │                       Data Storage                                  │
 │   ┌───────────────────┐          ┌───────────────────┐             │
 │   │   Qdrant Cloud    │          │  Neon Postgres    │             │
-│   │ (Vector Embeddings)│          │ (Chat History)    │             │
+│   │(Cohere 1024-dim)  │          │ (Chat History)    │             │
 │   └───────────────────┘          └───────────────────┘             │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+## RAG Chatbot Features
+
+The chatbot uses **Cohere embed-english-v3.0** for embeddings and **OpenAI GPT-4** for chat:
+
+- **Book Mode**: Full RAG - queries Qdrant for relevant chunks, generates answers with citations
+- **Selection Mode**: Highlight text on any page, click "Ask about selection" - answers ONLY from selected text (no Qdrant query)
+- **Module Filtering**: Restrict search to specific modules (ROS 2, Digital Twin, Isaac, VLA)
+- **Streaming Responses**: Real-time response generation
+- **Citation Cards**: Expandable source references with relevance scores
 
 ## Module Contents
 
@@ -238,54 +248,84 @@ npm run deploy
 
 ## API Endpoints
 
-### Chat
+### RAG Query (Book Mode)
 
 ```http
-POST /api/chat
+POST /api/rag/query
 Content-Type: application/json
 
 {
-  "message": "What is ROS 2?",
-  "session_id": "optional-session-id",
-  "include_citations": true,
-  "max_context_chunks": 5,
+  "query": "What is ROS 2?",
+  "top_k": 5,
+  "module_filter": "module-1-ros2",
+  "min_score": 0.5,
   "temperature": 0.7
 }
 ```
 
-### Voice Transcription
-
-```http
-POST /api/voice/transcribe
-Content-Type: multipart/form-data
-
-file: <audio-file.wav>
+**Response:**
+```json
+{
+  "answer": "ROS 2 (Robot Operating System 2) is...",
+  "citations": [
+    {
+      "chunk_id": "abc123",
+      "content": "...",
+      "module": "module-1-ros2",
+      "section": "What is ROS 2",
+      "score": 0.89
+    }
+  ],
+  "mode": "book",
+  "processing_time_ms": 1234
+}
 ```
 
-### Search
+### RAG Query (Selection-Only Mode)
 
 ```http
-POST /api/search
+POST /api/rag/query-selection
 Content-Type: application/json
 
 {
-  "query": "navigation stack",
-  "top_k": 5,
-  "module_filter": "module-3-isaac"
+  "query": "Explain this code",
+  "selected_text": "class MinimalNode(Node):\n    def __init__(self)...",
+  "temperature": 0.7
+}
+```
+
+**CRITICAL**: This endpoint does NOT query Qdrant. It answers ONLY using the provided `selected_text`.
+
+### Generate Embeddings
+
+```http
+POST /api/rag/embed
+Content-Type: application/json
+
+{
+  "texts": ["What is ROS 2?", "Explain URDF"],
+  "input_type": "search_query"
 }
 ```
 
 ### Document Ingestion
 
 ```http
-POST /api/ingest/documents
+POST /api/rag/ingest
 Content-Type: application/json
 
 {
-  "docs_path": "/path/to/docs",
-  "force_reindex": false
+  "docs_path": "./physical-ai-humanoid-robotics/docs"
 }
 ```
+
+### RAG Stats
+
+```http
+GET /api/rag/stats
+```
+
+Returns vector store info, embedding configuration, and chunk counts.
 
 ## Features
 
@@ -339,21 +379,27 @@ npm run lint
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `OPENAI_API_KEY` | OpenAI API key | Yes |
+| `COHERE_API_KEY` | Cohere API key for embeddings | Yes |
+| `OPENAI_API_KEY` | OpenAI API key for chat | Yes |
 | `DATABASE_URL` | Neon Postgres connection string | Yes |
 | `QDRANT_URL` | Qdrant instance URL | Yes |
 | `QDRANT_API_KEY` | Qdrant API key (cloud only) | No |
+| `COHERE_EMBEDDING_MODEL` | Cohere model (default: embed-english-v3.0) | No |
+| `OPENAI_CHAT_MODEL` | OpenAI model (default: gpt-4-turbo-preview) | No |
+| `CHUNK_SIZE` | Document chunk size (default: 500) | No |
 | `CORS_ORIGINS` | Allowed CORS origins | No |
 | `DEBUG` | Enable debug mode | No |
 
 ## Technologies
 
-- **Frontend**: Docusaurus, React, TypeScript
-- **Backend**: FastAPI, Python 3.11
-- **AI/ML**: OpenAI GPT-4, Whisper, text-embedding-3-large
-- **Vector DB**: Qdrant
+- **Frontend**: Docusaurus 3, React 18, TypeScript
+- **Backend**: FastAPI, Python 3.11, Pydantic v2
+- **Embeddings**: Cohere embed-english-v3.0 (1024 dimensions)
+- **Chat**: OpenAI GPT-4 Turbo
+- **Vector DB**: Qdrant Cloud
 - **Database**: Neon Serverless Postgres
-- **Deployment**: Docker, Railway, Vercel
+- **Document Processing**: LangChain, python-frontmatter, BeautifulSoup
+- **Deployment**: Docker, Vercel, Railway
 
 ## Success Criteria
 

@@ -2,18 +2,21 @@
 Services for the Physical AI RAG Backend.
 """
 
-from .embeddings import EmbeddingService, get_embedding_service
-from .vectorstore import VectorStoreService, get_vectorstore_service
+from .embeddings import CohereEmbeddingService, get_embedding_service
+from .vectorstore import QdrantService, get_vectorstore_service
 from .retrieval import RetrievalService, get_retrieval_service
 from .agent import AgentService, get_agent_service
+from .rag import RAGService, get_rag_service
 
 __all__ = [
-    "EmbeddingService",
+    "CohereEmbeddingService",
     "get_embedding_service",
-    "VectorStoreService",
+    "QdrantService",
     "get_vectorstore_service",
     "RetrievalService",
     "get_retrieval_service",
     "AgentService",
     "get_agent_service",
+    "RAGService",
+    "get_rag_service",
 ]
