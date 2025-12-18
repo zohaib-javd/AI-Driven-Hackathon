@@ -3,6 +3,7 @@
  *
  * A floating chat widget that provides intelligent Q&A about
  * ROS 2, Gazebo, Isaac Sim, and VLA robotics concepts.
+ * Knowledge is sourced directly from the book content.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -15,71 +16,105 @@ interface Message {
   timestamp: Date;
 }
 
-// Knowledge base for the chatbot
-const knowledgeBase: Record<string, string> = {
-  // ROS 2 Topics
-  'ros2': `**ROS 2 (Robot Operating System 2)** is a flexible framework for writing robot software. Key features include:
+interface KnowledgeEntry {
+  keywords: string[];
+  content: string;
+  priority: number;
+}
 
-• **Nodes** - Independent processes that perform computation
-• **Topics** - Named buses for publish/subscribe communication
-• **Services** - Request/response communication pattern
-• **Actions** - Long-running tasks with feedback
-• **DDS** - Data Distribution Service for real-time communication
+// Comprehensive knowledge base from the book content
+const knowledgeBase: KnowledgeEntry[] = [
+  // === MODULE 1: ROS 2 ===
+  {
+    keywords: ['ros2', 'ros 2', 'robot operating system', 'what is ros'],
+    priority: 10,
+    content: `**ROS 2 (Robot Operating System 2)** is the nervous system of robots - a middleware framework that coordinates communication between all robot components.
 
-ROS 2 uses a distributed architecture where nodes can run on different machines and communicate seamlessly.`,
+**Key Features:**
+• **Communication Infrastructure** - Message passing between processes
+• **Hardware Abstraction** - Standardized interfaces for sensors/actuators
+• **Package Management** - Reusable software modules
+• **Tools & Utilities** - Visualization, debugging, simulation
 
-  'node': `**ROS 2 Nodes** are the fundamental building blocks of a ROS 2 system:
+**Improvements over ROS 1:**
+| Feature | ROS 1 | ROS 2 |
+|---------|-------|-------|
+| Real-time | Not supported | Built-in support |
+| Security | No encryption | DDS security |
+| Multi-robot | Difficult | Native support |
+| Reliability | Best-effort | Quality of Service (QoS) |
 
-• Each node is an independent process
-• Nodes communicate via topics, services, and actions
-• Created using \`rclpy\` (Python) or \`rclcpp\` (C++)
-• Example: \`ros2 run my_package my_node\`
+ROS 2 uses **DDS (Data Distribution Service)** for real-time, secure communication. The recommended distribution is **ROS 2 Humble** on Ubuntu 22.04.`
+  },
+  {
+    keywords: ['node', 'nodes', 'rclpy', 'building block'],
+    priority: 9,
+    content: `**ROS 2 Nodes** are the fundamental building blocks - each node is an independent process performing a specific function.
 
+**Creating a Node:**
 \`\`\`python
 import rclpy
 from rclpy.node import Node
 
-class MyNode(Node):
+class MinimalNode(Node):
     def __init__(self):
-        super().__init__('my_node')
-        self.get_logger().info('Hello ROS 2!')
-\`\`\``,
+        super().__init__('minimal_node')
+        self.get_logger().info('Node started!')
 
-  'topic': `**ROS 2 Topics** enable publish/subscribe communication:
+def main():
+    rclpy.init()
+    node = MinimalNode()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+\`\`\`
 
-• **Publisher** - Sends messages to a topic
-• **Subscriber** - Receives messages from a topic
-• Topics are typed (e.g., \`sensor_msgs/Image\`)
-• Multiple publishers/subscribers per topic
+**Key Concepts:**
+• **Single Responsibility** - Each node does one thing well
+• **Timers** - Execute callbacks periodically
+• **Executors** - Control how callbacks are processed
+• **Lifecycle Nodes** - Managed state transitions (Unconfigured → Inactive → Active)
 
-Commands:
-• \`ros2 topic list\` - List all topics
-• \`ros2 topic echo /topic_name\` - View messages
-• \`ros2 topic info /topic_name\` - Topic details`,
+**Commands:**
+• \`ros2 node list\` - List running nodes
+• \`ros2 node info /node_name\` - Get node details`
+  },
+  {
+    keywords: ['topic', 'topics', 'publish', 'subscribe', 'pubsub', 'publisher', 'subscriber'],
+    priority: 9,
+    content: `**ROS 2 Topics** enable decoupled, asynchronous publish-subscribe communication.
 
-  'urdf': `**URDF (Unified Robot Description Format)** defines robot structure:
+**Publisher Example:**
+\`\`\`python
+from sensor_msgs.msg import JointState
 
-• XML format describing links and joints
-• **Links** - Rigid bodies with visual/collision geometry
-• **Joints** - Connections between links (revolute, prismatic, fixed)
-• Used for visualization in RViz and simulation in Gazebo
+class JointPublisher(Node):
+    def __init__(self):
+        super().__init__('joint_publisher')
+        self.publisher = self.create_publisher(JointState, 'joint_states', 10)
+        self.timer = self.create_timer(0.02, self.publish_joints)
+\`\`\`
 
-\`\`\`xml
-<robot name="my_robot">
-  <link name="base_link">
-    <visual>
-      <geometry><box size="0.5 0.5 0.1"/></geometry>
-    </visual>
-  </link>
-</robot>
-\`\`\``,
+**Subscriber Example:**
+\`\`\`python
+self.subscription = self.create_subscription(
+    JointState, 'joint_states', self.callback, 10)
+\`\`\`
 
-  'service': `**ROS 2 Services** provide request/response communication:
+**QoS Profiles:**
+• **RELIABLE** - For commands (must not lose messages)
+• **BEST_EFFORT** - For high-frequency sensors
+• **TRANSIENT_LOCAL** - For latched topics
 
-• Synchronous communication pattern
-• Client sends request, server sends response
-• Defined using \`.srv\` files
-• Good for quick, one-time operations
+**Commands:**
+• \`ros2 topic list\` - List topics
+• \`ros2 topic echo /topic\` - View messages
+• \`ros2 topic hz /topic\` - Check publishing rate`
+  },
+  {
+    keywords: ['service', 'services', 'request', 'response'],
+    priority: 8,
+    content: `**ROS 2 Services** provide synchronous request-response communication.
 
 \`\`\`python
 from example_interfaces.srv import AddTwoInts
@@ -88,343 +123,671 @@ from example_interfaces.srv import AddTwoInts
 def add_callback(request, response):
     response.sum = request.a + request.b
     return response
-\`\`\``,
 
-  // Gazebo & Digital Twin
-  'gazebo': `**Gazebo** is a powerful robot simulation environment:
+# Create service
+self.srv = self.create_service(AddTwoInts, 'add_two_ints', add_callback)
+\`\`\`
 
-• **Physics Engine** - ODE, Bullet, DART, Simbody
+**When to use Services:**
+• Quick, one-time operations
+• Configuration changes
+• State queries
+
+**Commands:**
+• \`ros2 service list\` - List services
+• \`ros2 service call /srv_name srv_type "{data}"\``
+  },
+  {
+    keywords: ['action', 'actions', 'goal', 'feedback', 'long running'],
+    priority: 8,
+    content: `**ROS 2 Actions** handle long-running tasks with progress feedback.
+
+**Use Cases:**
+• Navigation to a goal
+• Arm movement trajectories
+• Any task needing progress updates
+
+**Action Structure:**
+• **Goal** - What to achieve
+• **Feedback** - Progress updates (25%, 50%, 75%...)
+• **Result** - Final outcome
+
+Actions are ideal when you need to monitor progress and potentially cancel tasks.`
+  },
+  {
+    keywords: ['urdf', 'robot description', 'links', 'joints', 'xml'],
+    priority: 9,
+    content: `**URDF (Unified Robot Description Format)** defines robot structure in XML.
+
+\`\`\`xml
+<robot name="humanoid">
+  <link name="base_link">
+    <visual>
+      <geometry><box size="0.5 0.5 0.1"/></geometry>
+    </visual>
+    <collision>
+      <geometry><box size="0.5 0.5 0.1"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="10.0"/>
+      <inertia ixx="0.1" iyy="0.1" izz="0.1"/>
+    </inertial>
+  </link>
+
+  <joint name="shoulder" type="revolute">
+    <parent link="torso"/>
+    <child link="upper_arm"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="1.0"/>
+  </joint>
+</robot>
+\`\`\`
+
+**Components:**
+• **Links** - Rigid bodies with visual/collision geometry
+• **Joints** - Connections (revolute, prismatic, fixed, continuous)
+• Used in **RViz** for visualization and **Gazebo** for simulation`
+  },
+  {
+    keywords: ['dds', 'data distribution', 'middleware', 'qos', 'quality of service'],
+    priority: 7,
+    content: `**DDS (Data Distribution Service)** is the communication layer powering ROS 2.
+
+**Key Features:**
+• **Discovery** - Nodes find each other automatically
+• **QoS Policies** - Control reliability, durability, history
+• **Security** - Built-in encryption and authentication
+
+**QoS Profiles:**
+| Profile | Reliability | Use Case |
+|---------|-------------|----------|
+| Sensor Data | Best Effort | Camera, LiDAR |
+| Parameters | Reliable + Transient | Configuration |
+| Commands | Reliable | Motor commands |
+
+**Available DDS Implementations:**
+• Fast DDS (default)
+• Cyclone DDS
+• Connext DDS`
+  },
+
+  // === MODULE 2: DIGITAL TWIN & GAZEBO ===
+  {
+    keywords: ['digital twin', 'virtual replica', 'simulation', 'physical digital'],
+    priority: 10,
+    content: `**Digital Twin** is a virtual replica of a physical robot with bidirectional real-time synchronization.
+
+**Core Components:**
+1. **Physical Entity** - Real robot with sensors/actuators
+2. **Virtual Entity** - Simulation model (Gazebo/Unity)
+3. **Data Connection** - Real-time sensor streaming
+4. **Services** - Analytics, monitoring, prediction
+
+**Digital Twin vs Simulation:**
+| Aspect | Simulation | Digital Twin |
+|--------|------------|--------------|
+| Connection | One-way | Bidirectional |
+| Data | Synthetic | Live sensors |
+| Purpose | What-if analysis | Continuous monitoring |
+| Updates | Manual | Automatic sync |
+
+**Applications:**
+• Virtual testing before hardware trials
+• Predictive maintenance
+• Training AI models safely
+• Remote monitoring and control`
+  },
+  {
+    keywords: ['gazebo', 'simulator', 'physics engine', 'world'],
+    priority: 10,
+    content: `**Gazebo** is a powerful robot simulation environment for ROS 2.
+
+**Key Features:**
+• **Physics Engines** - ODE, Bullet, DART, Simbody
 • **Sensor Simulation** - Cameras, LiDAR, IMU, GPS
-• **World Building** - Create complex environments
-• **ROS 2 Integration** - Direct communication with ROS nodes
+• **World Building** - Complex environments
+• **ROS 2 Integration** - Direct communication with nodes
 
-Gazebo Harmonic (latest) features:
-• Improved rendering with Ogre 2
+**Gazebo Harmonic Features:**
+• Improved Ogre 2 rendering
 • Better plugin architecture
-• Enhanced sensor models`,
+• Enhanced sensor models
 
-  'digital twin': `**Digital Twin** is a virtual replica of a physical robot:
+**Usage:**
+\`\`\`bash
+# Launch Gazebo with ROS 2
+ros2 launch gazebo_ros gazebo.launch.py
 
-• Real-time synchronization with physical system
-• Used for testing, monitoring, and prediction
-• Reduces hardware testing costs
-• Enables "what-if" scenario analysis
+# Spawn a robot
+ros2 run gazebo_ros spawn_entity.py -entity robot -file model.urdf
+\`\`\``
+  },
+  {
+    keywords: ['unity', 'hdrp', 'game engine', 'photorealistic'],
+    priority: 8,
+    content: `**Unity for Robotics** provides high-fidelity simulation with game engine capabilities.
 
-Components:
-• **Physical Entity** - Real robot/system
-• **Virtual Model** - Simulation in Gazebo/Unity
-• **Data Connection** - Sensors and actuators
-• **Services** - Analytics, monitoring, control`,
-
-  'unity': `**Unity for Robotics** provides high-fidelity simulation:
-
+**Features:**
 • **HDRP** - High Definition Render Pipeline for photorealism
-• **Physics** - NVIDIA PhysX integration
+• **NVIDIA PhysX** - Physics integration
 • **ROS-Unity Bridge** - Communication with ROS 2
 • **Perception Package** - Synthetic data generation
 
-Unity is excellent for:
+**Use Cases:**
 • Human-robot interaction scenarios
 • Photorealistic training data
-• VR/AR robotics applications`,
-
-  'sensor': `**Sensor Simulation** in robotics covers:
+• VR/AR robotics applications
+• Complex environment simulation`
+  },
+  {
+    keywords: ['sensor', 'sensors', 'camera', 'lidar', 'imu', 'depth'],
+    priority: 8,
+    content: `**Sensor Simulation** in robotics covers multiple modalities:
 
 **Camera Sensors:**
 • RGB cameras - Color images
-• Depth cameras - Distance information
+• Depth cameras - Distance information (ToF, Structured Light)
 • Stereo cameras - 3D perception
+• Fisheye cameras - Wide field of view
 
 **Range Sensors:**
-• LiDAR - 360° point clouds
+• **LiDAR** - 360° point clouds (Velodyne, Ouster)
 • Ultrasonic - Short-range detection
 • Radar - Velocity and distance
 
-**Proprioceptive:**
-• IMU - Orientation and acceleration
+**Proprioceptive Sensors:**
+• **IMU** - Orientation/acceleration (accelerometer + gyroscope)
 • Encoders - Joint positions
-• Force/Torque - Contact sensing`,
+• Force/Torque - Contact sensing
 
-  // NVIDIA Isaac
-  'isaac': `**NVIDIA Isaac** is a platform for AI-powered robotics:
+All sensors can be simulated in Gazebo and Isaac Sim with realistic noise models.`
+  },
 
-**Isaac Sim:**
-• Built on Omniverse
-• Photorealistic rendering
-• Domain randomization
-• Synthetic data generation
-
-**Isaac ROS:**
-• GPU-accelerated perception
-• VSLAM (Visual SLAM)
-• Object detection
-• Navigation integration
+  // === MODULE 3: NVIDIA ISAAC ===
+  {
+    keywords: ['isaac', 'isaac sim', 'nvidia', 'omniverse'],
+    priority: 10,
+    content: `**NVIDIA Isaac Sim** is a scalable robotics simulation platform built on Omniverse.
 
 **Key Features:**
-• RTX ray tracing
-• PhysX 5 physics
-• USD scene format`,
+| Feature | Description |
+|---------|-------------|
+| **Photorealistic Rendering** | RTX ray-tracing |
+| **Accurate Physics** | PhysX 5.0 |
+| **Sensor Simulation** | Cameras, LiDAR, IMU |
+| **ROS 2 Integration** | Native bridge |
+| **Synthetic Data** | Training data generation |
+| **Parallel Simulation** | Thousands of environments |
 
-  'isaac sim': `**Isaac Sim** is NVIDIA's robot simulation platform:
+**Foundation Technologies:**
+• **USD** - Universal Scene Description (from Pixar)
+• **RTX** - Real-time ray tracing
+• **PhysX 5** - Advanced physics
 
-• **Omniverse Platform** - Collaborative, physically accurate
-• **RTX Rendering** - Real-time ray tracing
-• **PhysX 5** - Advanced physics simulation
-• **USD Format** - Universal Scene Description
-
-Capabilities:
-• Import URDF/MJCF robots
-• Generate synthetic training data
-• Test navigation algorithms
-• Simulate warehouse environments`,
-
-  'nav2': `**Nav2 (Navigation 2)** is the ROS 2 navigation stack:
+**Sim-to-Real Pipeline:**
+Domain randomization bridges the reality gap by varying lighting, textures, physics, and sensor noise during training.`
+  },
+  {
+    keywords: ['nav2', 'navigation', 'navigate', 'path planning', 'autonomous'],
+    priority: 10,
+    content: `**Nav2 (Navigation 2)** is the ROS 2 navigation stack for autonomous mobile robots.
 
 **Core Components:**
-• **Planner** - Global path planning (NavFn, Smac)
-• **Controller** - Local trajectory following (DWB, TEB)
-• **Recovery** - Stuck robot behaviors
-• **BT Navigator** - Behavior tree orchestration
+1. **Map Server** - Provides static map
+2. **AMCL** - Localization (particle filter)
+3. **Global Planner** - Plans path (NavFn, SMAC, Theta*)
+4. **Local Controller** - Follows path (DWB, Pure Pursuit, MPPI)
+5. **Costmap 2D** - Obstacle representation
+6. **Recovery Behaviors** - Handles stuck situations
 
-**Key Features:**
-• Costmap 2D - Obstacle representation
-• AMCL - Localization
-• Waypoint following
-• Dynamic obstacle avoidance`,
+**Behavior Trees** orchestrate navigation:
+\`\`\`
+Root → RateController → RecoveryNode
+         ├── ComputePath → FollowPath
+         └── Recovery (Spin, Wait, BackUp)
+\`\`\`
 
-  'vslam': `**Visual SLAM** (Simultaneous Localization and Mapping):
+**Commands:**
+\`\`\`bash
+ros2 launch nav2_bringup navigation_launch.py
+\`\`\`
 
-• Uses camera images for localization
-• Creates 3D maps of environment
-• Isaac ROS VSLAM uses GPU acceleration
+**Planner Selection:**
+• NavFn - Holonomic robots
+• SMAC Hybrid-A* - Car-like robots
+• Theta* - Smooth any-angle paths`
+  },
+  {
+    keywords: ['vslam', 'slam', 'localization', 'mapping', 'visual slam'],
+    priority: 8,
+    content: `**Visual SLAM** (Simultaneous Localization and Mapping) uses cameras for robot localization.
+
+**How it Works:**
+• Creates 3D maps from camera images
+• Tracks features to estimate position
+• GPU-accelerated in Isaac ROS
 
 **Algorithms:**
-• ORB-SLAM3 - Feature-based
-• LSD-SLAM - Direct method
-• RTAB-Map - RGB-D SLAM
+• **ORB-SLAM3** - Feature-based
+• **LSD-SLAM** - Direct method
+• **RTAB-Map** - RGB-D SLAM
 
 **Isaac ROS VSLAM:**
 • Stereo camera support
-• GPU-accelerated
-• Real-time performance`,
+• GPU-accelerated processing
+• Real-time performance
+• ROS 2 native integration`
+  },
+  {
+    keywords: ['perception', 'object detection', 'computer vision', 'yolo', 'detection'],
+    priority: 8,
+    content: `**Robot Perception** enables understanding of the environment.
 
-  'perception': `**Robot Perception** involves understanding the environment:
-
-**Computer Vision:**
-• Object detection (YOLO, Detectron2)
-• Semantic segmentation
-• Pose estimation
-• Depth estimation
+**Computer Vision Capabilities:**
+• **Object Detection** - YOLO, Detectron2, DETR
+• **Semantic Segmentation** - Mask R-CNN
+• **Pose Estimation** - MediaPipe, OpenPose
+• **Depth Estimation** - Stereo, monocular
 
 **Isaac ROS Perception:**
-• DNN Inference
+• DNN Inference on GPU
 • AprilTag detection
-• Occupancy grid
+• Occupancy grid generation
 • Point cloud processing
 
-**Sensors Used:**
-• RGB-D cameras
+**Sensors:**
+• RGB-D cameras (RealSense, Kinect)
 • Stereo cameras
-• LiDAR`,
+• LiDAR`
+  },
 
-  // VLA (Vision-Language-Action)
-  'vla': `**VLA (Vision-Language-Action)** integrates AI for autonomous robots:
+  // === MODULE 4: VLA ===
+  {
+    keywords: ['vla', 'vision language action', 'vision-language-action'],
+    priority: 10,
+    content: `**VLA (Vision-Language-Action)** integrates AI for natural human-robot interaction.
 
-**Components:**
-• **Vision** - Camera perception, object detection
-• **Language** - LLM for task understanding
-• **Action** - Robot motion execution
+**The Three Pillars:**
 
-**Pipeline:**
+**1. Vision (Perception):**
+• Camera feeds, depth sensors
+• Object detection, scene understanding
+
+**2. Language (Cognition):**
+• Speech recognition (Whisper)
+• LLM task planning (GPT-4, Claude)
+• Intent understanding
+
+**3. Action (Execution):**
+• Motion planning (MoveIt2)
+• Navigation (Nav2)
+• Manipulation control
+
+**VLA Pipeline:**
 1. Voice/text command input
 2. LLM parses intent and plans tasks
 3. Vision identifies objects/locations
 4. Action system executes movements
+5. Feedback updates perception
 
 **Applications:**
 • Service robots
 • Warehouse automation
-• Assistive robotics`,
-
-  'llm': `**LLMs in Robotics** enable natural language robot control:
+• Healthcare assistance
+• Home assistants`
+  },
+  {
+    keywords: ['llm', 'large language model', 'gpt', 'claude', 'language model', 'ai planning'],
+    priority: 9,
+    content: `**LLMs in Robotics** enable natural language robot control and task planning.
 
 **Capabilities:**
-• Task decomposition
-• Intent understanding
-• Error recovery planning
-• Human-robot dialogue
+• **Task Decomposition** - Break complex commands into steps
+• **Intent Understanding** - Parse natural language
+• **Error Recovery** - Plan alternative actions
+• **Human-Robot Dialogue** - Conversational interaction
 
-**Integration:**
-• OpenAI GPT-4 / Claude
-• Local models (LLaMA, Mistral)
-• Prompt engineering for robotics
+**Integration Pattern:**
+\`\`\`python
+class VLAAgent:
+    def __init__(self):
+        self.vision = VisionEncoder()
+        self.language = LLMPlanner()  # GPT-4, Claude
+        self.action = MotionController()
 
-**Example Tasks:**
-• "Pick up the red cup"
+    async def execute(self, command, camera):
+        scene = self.vision.analyze(camera)
+        plan = await self.language.plan(command, scene)
+        for step in plan:
+            await self.action.execute(step)
+\`\`\`
+
+**Example Commands:**
+• "Pick up the red cup on the table"
 • "Navigate to the kitchen"
-• "Find and bring me my keys"`,
-
-  'whisper': `**OpenAI Whisper** for voice-controlled robots:
+• "Find and bring me my keys"`
+  },
+  {
+    keywords: ['whisper', 'speech', 'voice', 'speech recognition', 'transcription'],
+    priority: 9,
+    content: `**OpenAI Whisper** enables voice-controlled robots with robust speech recognition.
 
 **Features:**
-• Multilingual speech recognition
+• Multilingual support (99 languages)
 • Noise-robust transcription
-• Real-time processing possible
+• Multiple model sizes (tiny to large)
 
 **Integration:**
 \`\`\`python
 import whisper
+
 model = whisper.load_model("base")
 result = model.transcribe("audio.wav")
 command = result["text"]
 \`\`\`
 
 **Robot Voice Pipeline:**
-1. Audio capture
-2. Whisper transcription
-3. LLM intent parsing
-4. Action execution`,
+1. **Audio Capture** - Microphone input
+2. **Whisper Transcription** - Speech to text
+3. **LLM Intent Parsing** - Understand command
+4. **Action Execution** - Robot movement
 
-  'manipulation': `**Robot Manipulation** for humanoid robots:
+**Model Sizes:**
+| Model | Parameters | Speed |
+|-------|-----------|-------|
+| tiny | 39M | Fastest |
+| base | 74M | Fast |
+| small | 244M | Balanced |
+| medium | 769M | Accurate |
+| large | 1.5B | Most accurate |`
+  },
+  {
+    keywords: ['manipulation', 'grasp', 'gripper', 'arm', 'moveit', 'pick'],
+    priority: 8,
+    content: `**Robot Manipulation** for humanoid robot arms and hands.
 
 **Components:**
 • **Arm Control** - Trajectory planning
-• **Gripper** - End-effector control
+• **Gripper Control** - End-effector operation
 • **Inverse Kinematics** - Joint angle calculation
 
 **MoveIt 2:**
-• Motion planning framework
+• Motion planning framework for ROS 2
 • Collision avoidance
 • Grasp planning
+• Multiple planning algorithms (OMPL, CHOMP)
 
 **Key Concepts:**
-• Task space vs joint space
-• Motion primitives
-• Force control`,
+• **Task Space** - End-effector position/orientation
+• **Joint Space** - Individual joint angles
+• **Motion Primitives** - Basic movement patterns
+• **Force Control** - Adaptive gripping
 
-  'safety': `**Safety in Autonomous Robots:**
+**Manipulation Pipeline:**
+1. Detect object with vision
+2. Plan grasp pose
+3. Compute arm trajectory
+4. Execute motion with collision checking`
+  },
+  {
+    keywords: ['safety', 'guardrail', 'guardrails', 'safe', 'emergency'],
+    priority: 8,
+    content: `**Safety in Autonomous Robots** is critical for real-world deployment.
 
-**Guardrails:**
+**Hardware Guardrails:**
 • Workspace limits
 • Force/torque limits
-• Emergency stop
+• Emergency stop buttons
 • Human detection zones
 
 **Software Safety:**
-• Action validation
+• Action validation before execution
 • Command sanity checks
 • Watchdog timers
 • Graceful degradation
 
+**LLM Safety Guardrails:**
+• Filter harmful commands
+• Verify action feasibility
+• Check physical constraints
+• Require confirmation for risky actions
+
 **Standards:**
-• ISO 10218 - Industrial robots
-• ISO 13482 - Service robots
-• ISO 15066 - Collaborative robots`,
-};
+• **ISO 10218** - Industrial robots
+• **ISO 13482** - Service robots
+• **ISO 15066** - Collaborative robots`
+  },
 
-// Find best matching response from knowledge base
-function findResponse(query: string): string {
-  const lowerQuery = query.toLowerCase();
+  // General/Help
+  {
+    keywords: ['help', 'what can you', 'how to use', 'commands'],
+    priority: 5,
+    content: `I'm your **Physical AI & Humanoid Robotics** assistant! I can answer questions from the book.
 
-  // Direct keyword matching
-  for (const [key, value] of Object.entries(knowledgeBase)) {
-    if (lowerQuery.includes(key)) {
-      return value;
-    }
-  }
-
-  // Fuzzy matching for common questions
-  if (lowerQuery.includes('what is') || lowerQuery.includes('explain') || lowerQuery.includes('tell me about')) {
-    for (const [key, value] of Object.entries(knowledgeBase)) {
-      if (lowerQuery.includes(key)) {
-        return value;
-      }
-    }
-  }
-
-  // Greeting responses
-  if (lowerQuery.match(/^(hi|hello|hey|greetings)/)) {
-    return `Hello! I'm your Physical AI assistant. I can help you learn about:
-
-• **ROS 2** - Nodes, topics, services, URDF
-• **Gazebo & Unity** - Robot simulation
-• **NVIDIA Isaac** - AI-powered robotics
-• **VLA** - Vision-Language-Action systems
-
-What would you like to know?`;
-  }
-
-  // Help response
-  if (lowerQuery.includes('help') || lowerQuery.includes('what can you')) {
-    return `I can answer questions about humanoid robotics topics:
-
-**Module 1 - ROS 2:**
+**Module 1 - ROS 2 Nervous System:**
 • Nodes, Topics, Services, Actions
 • URDF robot description
-• Launch files, Parameters
+• DDS communication, QoS
 
-**Module 2 - Simulation:**
-• Gazebo physics simulation
+**Module 2 - Digital Twin Simulation:**
+• What is a Digital Twin?
+• Gazebo simulation
 • Unity for robotics
-• Digital twins, Sensors
+• Sensor simulation
 
-**Module 3 - NVIDIA Isaac:**
-• Isaac Sim overview
+**Module 3 - Isaac AI Brain:**
+• NVIDIA Isaac Sim
 • Nav2 navigation
-• VSLAM, Perception
+• VSLAM localization
+• Perception pipelines
 
-**Module 4 - VLA:**
-• Voice commands (Whisper)
-• LLM planning
-• Manipulation, Safety
+**Module 4 - VLA Capstone:**
+• Vision-Language-Action
+• Whisper voice commands
+• LLM task planning
+• Robot manipulation
+• Safety guardrails
 
-Try asking: "What is ROS 2?" or "Explain VLA"`;
-  }
+**Try asking:**
+• "What is ROS 2?"
+• "How do topics work?"
+• "Explain digital twins"
+• "What is VLA?"
+• "How does Nav2 work?"`
+  },
+  {
+    keywords: ['humanoid', 'robot', 'robotics'],
+    priority: 6,
+    content: `**Humanoid Robotics** combines multiple systems covered in this book:
 
-  // Navigation specific
-  if (lowerQuery.includes('navigation') || lowerQuery.includes('navigate')) {
-    return knowledgeBase['nav2'];
-  }
-
-  // Robot/humanoid general
-  if (lowerQuery.includes('humanoid') || lowerQuery.includes('robot')) {
-    return `**Humanoid Robotics** combines multiple systems:
-
-**Perception:**
-• Cameras, LiDAR, IMU
+**Perception Layer:**
+• Cameras (RGB, depth, stereo)
+• LiDAR, IMU sensors
 • Object detection & tracking
 • SLAM for mapping
 
-**Cognition:**
+**Cognition Layer:**
 • LLM-based task planning
 • Behavior trees
 • State machines
+• Natural language understanding
 
-**Action:**
+**Action Layer:**
 • Bipedal locomotion
 • Arm manipulation
 • Gripper control
+• Balance control
 
-**Frameworks:**
-• ROS 2 for communication
-• Nav2 for navigation
-• MoveIt 2 for manipulation
+**Software Stack:**
+• **ROS 2** - Communication framework
+• **Nav2** - Navigation
+• **MoveIt 2** - Motion planning
+• **Isaac Sim** - Simulation
 
-This book covers all these topics across 4 modules!`;
+This book covers all four modules to build complete autonomous humanoid robots!`
+  },
+  {
+    keywords: ['costmap', 'obstacle', 'path'],
+    priority: 7,
+    content: `**Costmap 2D** represents obstacles and navigation costs in Nav2.
+
+**Layers:**
+• **Static Layer** - From map
+• **Obstacle Layer** - From sensors
+• **Inflation Layer** - Safety margins
+• **Voxel Layer** - 3D obstacles
+
+**Cost Values:**
+• 0 = Free space
+• 253 = Inscribed (robot edge)
+• 254 = Lethal (collision)
+• 255 = Unknown
+
+**Configuration:**
+\`\`\`yaml
+inflation_layer:
+  plugin: "nav2_costmap_2d::InflationLayer"
+  cost_scaling_factor: 3.0
+  inflation_radius: 0.55
+\`\`\``
+  },
+  {
+    keywords: ['behavior tree', 'bt', 'navigation logic'],
+    priority: 7,
+    content: `**Behavior Trees** in Nav2 orchestrate navigation logic.
+
+**Structure:**
+\`\`\`
+Root (Sequence)
+└── RecoveryNode
+    ├── PipelineSequence
+    │   ├── ComputePathToPose
+    │   └── FollowPath
+    └── RecoveryFallback
+        ├── Spin
+        ├── Wait
+        └── BackUp
+\`\`\`
+
+**Advantages over State Machines:**
+• Modular and reusable
+• Easy to extend
+• Visual debugging with Groot
+• Hierarchical organization
+
+**Node Types:**
+• **Sequence** - All children must succeed
+• **Fallback** - First success wins
+• **Decorator** - Modify child behavior`
+  },
+  {
+    keywords: ['launch', 'launch file', 'parameter', 'config'],
+    priority: 6,
+    content: `**ROS 2 Launch Files** configure and start multiple nodes.
+
+\`\`\`python
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+def generate_launch_description():
+    return LaunchDescription([
+        Node(
+            package='my_package',
+            executable='my_node',
+            name='my_node',
+            parameters=[{'param': 'value'}]
+        )
+    ])
+\`\`\`
+
+**Parameters:**
+\`\`\`bash
+# Set at launch
+ros2 run pkg node --ros-args -p rate:=10.0
+
+# Set at runtime
+ros2 param set /node param_name value
+\`\`\``
+  }
+];
+
+// Improved search function with better matching
+function findBestResponse(query: string): string {
+  const lowerQuery = query.toLowerCase();
+  const words = lowerQuery.split(/\s+/);
+
+  // Score each knowledge entry
+  const scored = knowledgeBase.map(entry => {
+    let score = 0;
+
+    // Check keyword matches
+    for (const keyword of entry.keywords) {
+      if (lowerQuery.includes(keyword)) {
+        score += 10 + keyword.length; // Longer matches are more specific
+      }
+      // Partial word matching
+      for (const word of words) {
+        if (word.length > 3 && keyword.includes(word)) {
+          score += 3;
+        }
+      }
+    }
+
+    // Boost by priority
+    score += entry.priority;
+
+    return { entry, score };
+  });
+
+  // Sort by score and get best match
+  scored.sort((a, b) => b.score - a.score);
+
+  // If best score is reasonable, return it
+  if (scored[0].score > 10) {
+    return scored[0].entry.content;
   }
 
-  // Default response
-  return `I don't have specific information about that topic. Try asking about:
+  // Greeting detection
+  if (lowerQuery.match(/^(hi|hello|hey|greetings|good morning|good evening)/)) {
+    return `Hello! I'm your **Physical AI & Humanoid Robotics** assistant.
 
-• **ROS 2** - nodes, topics, services, urdf
-• **Gazebo** - simulation, sensors, physics
-• **Isaac Sim** - NVIDIA robotics platform
-• **Nav2** - robot navigation
-• **VLA** - vision-language-action
-• **Whisper** - voice recognition
-• **LLM** - language models for robots
+I can help you learn about:
+• **ROS 2** - The robot nervous system
+• **Digital Twins** - Virtual robot replicas
+• **NVIDIA Isaac** - AI-powered simulation
+• **VLA** - Voice-controlled autonomous robots
 
-Or type "help" for a full list of topics!`;
+What would you like to know? Try asking about any topic from the book!`;
+  }
+
+  // Thanks detection
+  if (lowerQuery.match(/(thank|thanks|thx)/)) {
+    return `You're welcome! Feel free to ask more questions about robotics.
+
+Topics I can help with:
+• ROS 2 nodes, topics, services
+• Gazebo and Unity simulation
+• Nav2 navigation
+• VLA and LLM integration`;
+  }
+
+  // Default fallback with suggestions
+  return `I found several related topics. Here's what I can help you with:
+
+**Most Popular Questions:**
+• "What is ROS 2?" - Learn about the robot operating system
+• "How do nodes work?" - Understanding ROS 2 building blocks
+• "Explain digital twins" - Virtual robot replicas
+• "What is VLA?" - Vision-Language-Action systems
+• "How does Nav2 work?" - Robot navigation
+
+**Or ask about:**
+• Topics, Services, Actions, URDF
+• Gazebo, Unity, Isaac Sim
+• SLAM, Perception, LLMs
+• Whisper, Manipulation, Safety
+
+Just type your question and I'll find the relevant information from the book!`;
 }
 
 export default function ChatWidget(): JSX.Element {
@@ -436,7 +799,6 @@ export default function ChatWidget(): JSX.Element {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -445,7 +807,6 @@ export default function ChatWidget(): JSX.Element {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // Focus input when chat opens
   useEffect(() => {
     if (isOpen) {
       inputRef.current?.focus();
@@ -459,13 +820,15 @@ export default function ChatWidget(): JSX.Element {
         {
           id: 'welcome',
           role: 'assistant',
-          content:
-            "Hello! I'm your **Physical AI Assistant**. I can help you learn about:\n\n" +
-            "• **ROS 2** - Nodes, topics, services, URDF\n" +
-            "• **Gazebo & Unity** - Simulation and digital twins\n" +
-            "• **NVIDIA Isaac** - Perception and navigation\n" +
-            "• **VLA** - Voice-controlled autonomous robots\n\n" +
-            "What would you like to learn about?",
+          content: `Welcome to the **Physical AI & Humanoid Robotics** assistant!
+
+I can answer questions from the textbook about:
+• **Module 1:** ROS 2 - Nodes, Topics, Services, URDF
+• **Module 2:** Digital Twins - Gazebo, Unity, Sensors
+• **Module 3:** NVIDIA Isaac - Sim, Nav2, Perception
+• **Module 4:** VLA - Voice Commands, LLMs, Manipulation
+
+**Try asking:** "What is ROS 2?" or "How does Nav2 work?"`,
           timestamp: new Date(),
         },
       ]);
@@ -487,10 +850,10 @@ export default function ChatWidget(): JSX.Element {
     setInput('');
     setIsTyping(true);
 
-    // Simulate typing delay for natural feel
-    await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1000));
+    // Simulate thinking delay
+    await new Promise((resolve) => setTimeout(resolve, 600 + Math.random() * 800));
 
-    const response = findResponse(userQuery);
+    const response = findBestResponse(userQuery);
 
     const assistantMessage: Message = {
       id: `assistant-${Date.now()}`,
@@ -511,33 +874,24 @@ export default function ChatWidget(): JSX.Element {
   };
 
   const formatMessage = (content: string) => {
-    // Simple markdown-like formatting
     let formatted = content
-      // Code blocks
       .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-      // Inline code
       .replace(/`([^`]+)`/g, '<code>$1</code>')
-      // Bold
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      // Line breaks
       .replace(/\n/g, '<br />');
-
-    // Convert bullet points
     formatted = formatted.replace(/• /g, '<span class="bullet">•</span> ');
-
     return formatted;
   };
 
   const quickQuestions = [
     "What is ROS 2?",
-    "Explain URDF",
-    "What is VLA?",
-    "Tell me about Nav2",
+    "Explain VLA",
+    "How does Nav2 work?",
+    "What is a Digital Twin?",
   ];
 
   return (
     <>
-      {/* Chat Toggle Button */}
       <button
         className={styles.chatToggle}
         onClick={() => setIsOpen(!isOpen)}
@@ -545,92 +899,47 @@ export default function ChatWidget(): JSX.Element {
       >
         {isOpen ? (
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M18 6L6 18M6 6l12 12"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
         ) : (
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         )}
       </button>
 
-      {/* Chat Window */}
       {isOpen && (
         <div className={styles.chatWindow}>
-          {/* Header */}
           <div className={styles.chatHeader}>
             <div className={styles.headerInfo}>
               <span className={styles.headerTitle}>Physical AI Assistant</span>
-              <span className={styles.headerStatus}>
-                {isTyping ? 'Typing...' : 'Online'}
-              </span>
+              <span className={styles.headerStatus}>{isTyping ? 'Typing...' : 'Online'}</span>
             </div>
-            <button
-              className={styles.closeButton}
-              onClick={() => setIsOpen(false)}
-              aria-label="Close chat"
-            >
-              ×
-            </button>
+            <button className={styles.closeButton} onClick={() => setIsOpen(false)} aria-label="Close chat">×</button>
           </div>
 
-          {/* Messages */}
           <div className={styles.messagesContainer}>
             {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`${styles.message} ${
-                  message.role === 'user' ? styles.userMessage : styles.assistantMessage
-                }`}
-              >
-                <div
-                  className={styles.messageContent}
-                  dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
-                />
+              <div key={message.id} className={`${styles.message} ${message.role === 'user' ? styles.userMessage : styles.assistantMessage}`}>
+                <div className={styles.messageContent} dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}/>
               </div>
             ))}
             {isTyping && (
               <div className={`${styles.message} ${styles.assistantMessage}`}>
-                <div className={styles.loadingDots}>
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
+                <div className={styles.loadingDots}><span></span><span></span><span></span></div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Questions */}
           {messages.length <= 1 && (
             <div className={styles.quickQuestions}>
               {quickQuestions.map((q, i) => (
-                <button
-                  key={i}
-                  className={styles.quickQuestion}
-                  onClick={() => {
-                    setInput(q);
-                    setTimeout(() => sendMessage(), 100);
-                  }}
-                >
-                  {q}
-                </button>
+                <button key={i} className={styles.quickQuestion} onClick={() => { setInput(q); setTimeout(() => sendMessage(), 100); }}>{q}</button>
               ))}
             </div>
           )}
 
-          {/* Input */}
           <div className={styles.inputContainer}>
             <input
               ref={inputRef}
@@ -638,24 +947,13 @@ export default function ChatWidget(): JSX.Element {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask about ROS 2, Gazebo, Isaac, VLA..."
+              placeholder="Ask about ROS 2, VLA, Nav2, Isaac..."
               className={styles.input}
               disabled={isTyping}
             />
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || isTyping}
-              className={styles.sendButton}
-              aria-label="Send message"
-            >
+            <button onClick={sendMessage} disabled={!input.trim() || isTyping} className={styles.sendButton} aria-label="Send message">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
           </div>
