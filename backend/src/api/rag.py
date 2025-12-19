@@ -192,6 +192,14 @@ class IngestRequest(BaseModel):
     )
 
 
+class IngestInlineRequest(BaseModel):
+    """Request to ingest documents inline (for cloud deployments)."""
+    documents: List[Dict[str, Any]] = Field(
+        ...,
+        description="List of documents with 'content', 'source_path', 'module', 'chapter', 'section' fields"
+    )
+
+
 class IngestResponse(BaseModel):
     """Response from ingestion."""
     status: str
@@ -463,6 +471,83 @@ async def ingest_documents(
         raise HTTPException(status_code=404, detail=f"Path not found: {request.docs_path}")
     except Exception as e:
         logger.error(f"Ingest error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=500,
+            detail="Ingestion failed. Check logs for details."
+        )
+
+
+@router.post("/ingest-inline", response_model=IngestResponse)
+async def ingest_inline(request: IngestInlineRequest):
+    """
+    Ingest documents inline (for cloud deployments without filesystem access).
+
+    This endpoint accepts document content directly instead of reading from files.
+    Each document should have:
+    - content: The full text content
+    - source_path: Original file path (for reference)
+    - module: Module name (e.g., 'module-1-ros2')
+    - chapter: Chapter name
+    - section: Section name
+    """
+    try:
+        from ..services.vectorstore import get_vectorstore_service
+        from ..services.embeddings import get_embedding_service
+        from ..ingestion.chunker import SemanticChunker
+        import uuid
+
+        vectorstore = get_vectorstore_service()
+        embedding_service = get_embedding_service()
+        chunker = SemanticChunker()
+
+        chunks_created = 0
+        chunks_stored = 0
+        errors = []
+
+        for doc in request.documents:
+            try:
+                content = doc.get("content", "")
+                source_path = doc.get("source_path", "unknown")
+                module = doc.get("module", "unknown")
+                chapter = doc.get("chapter", "unknown")
+                section = doc.get("section", "unknown")
+
+                # Chunk the document
+                text_chunks = chunker.chunk_text(content)
+                chunks_created += len(text_chunks)
+
+                # Generate embeddings and store
+                for i, chunk_text in enumerate(text_chunks):
+                    chunk_id = f"{source_path}_{i}_{uuid.uuid4().hex[:8]}"
+                    embedding = embedding_service.embed_query(chunk_text)
+
+                    vectorstore.upsert_vectors(
+                        ids=[chunk_id],
+                        embeddings=[embedding],
+                        metadatas=[{
+                            "content": chunk_text,
+                            "source_path": source_path,
+                            "module": module,
+                            "chapter": chapter,
+                            "section": section,
+                            "chunk_index": i,
+                        }]
+                    )
+                    chunks_stored += 1
+
+            except Exception as e:
+                errors.append(f"Error processing {doc.get('source_path', 'unknown')}: {str(e)}")
+
+        return IngestResponse(
+            status="completed",
+            documents_loaded=len(request.documents),
+            chunks_created=chunks_created,
+            chunks_stored=chunks_stored,
+            errors=errors,
+        )
+
+    except Exception as e:
+        logger.error(f"Inline ingest error: {type(e).__name__}: {e}")
         raise HTTPException(
             status_code=500,
             detail="Ingestion failed. Check logs for details."
