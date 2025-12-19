@@ -512,25 +512,44 @@ async def ingest_inline(request: IngestInlineRequest):
                 chapter = doc.get("chapter", "unknown")
                 section = doc.get("section", "unknown")
 
-                # Chunk the document
-                text_chunks = chunker.chunk_text(content)
-                chunks_created += len(text_chunks)
+                # Chunk the document using the proper method
+                # Use the provided module/chapter if available, otherwise extract from source_path
+                actual_module = module if module != "unknown" else "general"
+                actual_chapter = chapter if chapter != "unknown" else source_path.split('/')[-1].replace('.mdx', '')
+
+                # Extract module and chapter from source_path if not provided explicitly
+                path_parts = source_path.split('/')
+                if module == "unknown" and len(path_parts) >= 2 and path_parts[0].startswith('module'):
+                    actual_module = path_parts[0]
+                    actual_chapter = path_parts[1].replace('.mdx', '')
+
+                # Use the chunk_document method which returns DocumentChunk objects
+                document_chunks = chunker.chunk_document(
+                    content=content,
+                    document_path=source_path,
+                    module=actual_module,
+                    chapter=actual_chapter,
+                    title=section
+                )
+
+                chunks_created += len(document_chunks)
 
                 # Generate embeddings and store
-                for i, chunk_text in enumerate(text_chunks):
+                for i, doc_chunk in enumerate(document_chunks):
                     chunk_id = f"{source_path}_{i}_{uuid.uuid4().hex[:8]}"
-                    embedding = embedding_service.embed_query(chunk_text)
+                    embedding = embedding_service.embed_query(doc_chunk.content)
 
-                    vectorstore.upsert_vectors(
-                        ids=[chunk_id],
+                    vectorstore.upsert_chunks(
+                        chunk_ids=[chunk_id],
                         embeddings=[embedding],
-                        metadatas=[{
-                            "content": chunk_text,
+                        payloads=[{
+                            "content": doc_chunk.content,
                             "source_path": source_path,
-                            "module": module,
-                            "chapter": chapter,
-                            "section": section,
+                            "module": doc_chunk.module,
+                            "chapter": doc_chunk.chapter,
+                            "section": doc_chunk.section,
                             "chunk_index": i,
+                            "chunk_type": doc_chunk.chunk_type,
                         }]
                     )
                     chunks_stored += 1
