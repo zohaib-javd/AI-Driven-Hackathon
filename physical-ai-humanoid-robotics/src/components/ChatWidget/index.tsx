@@ -915,7 +915,37 @@ I can answer questions from the textbook about:
               <span className={styles.headerTitle}>Physical AI Assistant</span>
               <span className={styles.headerStatus}>{isTyping ? 'Typing...' : 'Online'}</span>
             </div>
-            <button className={styles.closeButton} onClick={() => setIsOpen(false)} aria-label="Close chat">×</button>
+            <div className={styles.headerButtons}>
+              <button
+                className={styles.clearButton}
+                onClick={() => {
+                  setMessages([]);
+                  // Add back the welcome message
+                  setMessages([
+                    {
+                      id: 'welcome',
+                      role: 'assistant',
+                      content: `Welcome to the **Physical AI & Humanoid Robotics** assistant!
+
+I can answer questions from the textbook about:
+• **Module 1:** ROS 2 - Nodes, Topics, Services, URDF
+• **Module 2:** Digital Twins - Gazebo, Unity, Sensors
+• **Module 3:** NVIDIA Isaac - Sim, Nav2, Perception
+• **Module 4:** VLA - Voice Commands, LLMs, Manipulation
+
+**Try asking:** "What is ROS 2?" or "How does Nav2 work?"`,
+                      timestamp: new Date(),
+                    },
+                  ]);
+                }}
+                aria-label="Clear chat"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <button className={styles.closeButton} onClick={() => setIsOpen(false)} aria-label="Close chat">×</button>
+            </div>
           </div>
 
           <div className={styles.messagesContainer}>

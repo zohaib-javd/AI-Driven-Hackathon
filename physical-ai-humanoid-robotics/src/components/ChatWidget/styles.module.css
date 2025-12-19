@@ -84,6 +84,29 @@
   opacity: 0.8;
 }
 
+.headerButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.clearButton {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.clearButton:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .closeButton {
   background: rgba(255, 255, 255, 0.2);
   border: none;

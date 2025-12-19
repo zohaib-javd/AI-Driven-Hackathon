@@ -412,7 +412,32 @@ If the problem persists, browse the book content directly!`,
             <div className={styles.headerActions}>
               <button
                 className={styles.clearButton}
-                onClick={() => setMessages([])}
+                onClick={() => {
+                  setMessages([]);
+                  // Add back the welcome message
+                  setMessages([
+                    {
+                      id: 'welcome',
+                      role: 'assistant',
+                      content: `Welcome to the **Secure RAG Assistant**!
+
+I use advanced AI to answer your questions from the textbook:
+
+**Two Modes:**
+- **Book Mode** - Search the entire book for answers with citations
+- **Selection Mode** - Highlight text and I'll explain ONLY that selection
+
+**Topics I cover:**
+- **Module 1:** ROS 2 - Nodes, Topics, Services, URDF
+- **Module 2:** Digital Twins - Gazebo, Unity, Sensors
+- **Module 3:** NVIDIA Isaac - Sim, Nav2, Perception
+- **Module 4:** VLA - Voice Commands, LLMs, Manipulation
+
+**Tip:** Select any text on the page and click "Ask about this selection" for focused explanations!`,
+                      timestamp: new Date(),
+                    },
+                  ]);
+                }}
                 aria-label="Clear chat"
                 title="Clear chat"
               >
