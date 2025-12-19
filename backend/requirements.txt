@@ -16,7 +16,7 @@ psycopg2-binary==2.9.9
 qdrant-client==1.7.3
 
 # AI/ML
-cohere==4.47
+cohere>=5.1.4
 openai==1.12.0
 tiktoken==0.5.2
 
