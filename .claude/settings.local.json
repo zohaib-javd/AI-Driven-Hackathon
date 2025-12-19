@@ -48,7 +48,11 @@
       "Bash(npx vercel --version)",
       "Bash(npx vercel:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Vercel deployment - disable git-based last update time\n\nDisable showLastUpdateTime and showLastUpdateAuthor in Docusaurus\nconfig to fix build errors on Vercel \\(no git history in deploy env\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "SlashCommand(/sp.specify)",
+      "Bash(dir:*)",
+      "SlashCommand(/sp.plan)",
+      "Bash(git check-ignore:*)"
     ]
   }
 }

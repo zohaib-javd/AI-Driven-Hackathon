@@ -1,19 +1,23 @@
 /**
- * RAGChatWidget - RAG-Powered Chatbot for Physical AI & Humanoid Robotics
+ * RAGChatWidget - Secure RAG-Powered Chatbot for Physical AI & Humanoid Robotics
  *
- * Features:
- * - RAG-powered Q&A using Cohere embeddings + Qdrant + OpenAI
- * - Text selection mode: answer ONLY from selected text
- * - Streaming responses
- * - Citations from source documents
+ * SECURITY FEATURES:
+ * - NO API keys or credentials in frontend code
+ * - All API calls go through backend proxy
+ * - Sanitized error messages (no internal details)
+ *
+ * MODES:
+ * 1. Book Mode - Full RAG with Qdrant vector search
+ * 2. Selection-Only Mode - Uses ONLY highlighted text (NO Qdrant)
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styles from './styles.module.css';
 
-// API Configuration
+// API Configuration - Backend proxy only (NO direct external API calls)
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
+// Types
 interface Citation {
   chunk_id: string;
   content: string;
@@ -32,6 +36,7 @@ interface Message {
   mode?: 'book' | 'selection_only';
   timestamp: Date;
   isStreaming?: boolean;
+  error?: boolean;
 }
 
 interface RAGQueryResponse {
@@ -74,7 +79,7 @@ function SelectionPopup({
         Ask about this selection
       </button>
       <button onClick={onClose} className={styles.selectionCloseBtn}>
-        ×
+        x
       </button>
     </div>
   );
@@ -83,6 +88,11 @@ function SelectionPopup({
 // Citation Card Component
 function CitationCard({ citation, index }: { citation: Citation; index: number }) {
   const [expanded, setExpanded] = useState(false);
+
+  // Don't show citation details for user selections
+  if (citation.chunk_id === 'user_selection') {
+    return null;
+  }
 
   return (
     <div className={styles.citationCard}>
@@ -94,7 +104,7 @@ function CitationCard({ citation, index }: { citation: Citation; index: number }
         <span className={styles.citationScore}>
           {Math.round(citation.score * 100)}% match
         </span>
-        <span className={styles.expandIcon}>{expanded ? '−' : '+'}</span>
+        <span className={styles.expandIcon}>{expanded ? '-' : '+'}</span>
       </div>
       {expanded && (
         <div className={styles.citationContent}>
@@ -139,7 +149,7 @@ export default function RAGChatWidget(): JSX.Element {
       const selection = window.getSelection();
       const text = selection?.toString().trim();
 
-      if (text && text.length > 10 && text.length < 5000) {
+      if (text && text.length >= 10 && text.length <= 5000) {
         const range = selection?.getRangeAt(0);
         const rect = range?.getBoundingClientRect();
 
@@ -167,21 +177,21 @@ export default function RAGChatWidget(): JSX.Element {
         {
           id: 'welcome',
           role: 'assistant',
-          content: `Welcome to the **RAG-Powered Physical AI Assistant**! 🤖
+          content: `Welcome to the **Secure RAG Assistant**!
 
 I use advanced AI to answer your questions from the textbook:
 
 **Two Modes:**
-• **Book Mode** - Search the entire book for answers
-• **Selection Mode** - Highlight text and I'll explain just that selection
+- **Book Mode** - Search the entire book for answers with citations
+- **Selection Mode** - Highlight text and I'll explain ONLY that selection
 
 **Topics I cover:**
-• **Module 1:** ROS 2 - Nodes, Topics, Services, URDF
-• **Module 2:** Digital Twins - Gazebo, Unity, Sensors
-• **Module 3:** NVIDIA Isaac - Sim, Nav2, Perception
-• **Module 4:** VLA - Voice Commands, LLMs, Manipulation
+- **Module 1:** ROS 2 - Nodes, Topics, Services, URDF
+- **Module 2:** Digital Twins - Gazebo, Unity, Sensors
+- **Module 3:** NVIDIA Isaac - Sim, Nav2, Perception
+- **Module 4:** VLA - Voice Commands, LLMs, Manipulation
 
-**Tip:** Select any text on the page and click "Ask about this selection" to get focused explanations!`,
+**Tip:** Select any text on the page and click "Ask about this selection" for focused explanations!`,
           timestamp: new Date(),
         },
       ]);
@@ -198,7 +208,7 @@ I use advanced AI to answer your questions from the textbook:
     }
   };
 
-  // Send message to RAG API
+  // Send message to backend API (SECURE - no direct external API calls)
   const sendMessage = async () => {
     if (!input.trim() || isTyping) return;
 
@@ -233,8 +243,8 @@ I use advanced AI to answer your questions from the textbook:
       let response: RAGQueryResponse;
 
       if (mode === 'selection' && selectedText) {
-        // Selection-only mode - DO NOT query Qdrant
-        response = await fetch(`${API_BASE_URL}/api/rag/query-selection`, {
+        // Selection-only mode - Backend will NOT query Qdrant
+        const res = await fetch(`${API_BASE_URL}/api/rag/query-selection`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -242,10 +252,15 @@ I use advanced AI to answer your questions from the textbook:
             selected_text: selectedText,
             temperature: 0.7,
           }),
-        }).then((res) => res.json());
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        response = await res.json();
       } else {
-        // Book mode - full RAG with Qdrant
-        response = await fetch(`${API_BASE_URL}/api/rag/query`, {
+        // Book mode - Full RAG with Qdrant
+        const res = await fetch(`${API_BASE_URL}/api/rag/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -255,7 +270,12 @@ I use advanced AI to answer your questions from the textbook:
             min_score: 0.5,
             temperature: 0.7,
           }),
-        }).then((res) => res.json());
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        response = await res.json();
       }
 
       // Update message with response
@@ -275,21 +295,22 @@ I use advanced AI to answer your questions from the textbook:
     } catch (error) {
       console.error('RAG API error:', error);
 
-      // Fallback to local knowledge base if API fails
+      // SECURITY: Don't expose internal error details to user
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMessageId
             ? {
                 ...msg,
-                content: `I'm having trouble connecting to the RAG backend. Here's what I know about your question:
+                content: `I'm having trouble connecting to the assistant. Please try again.
 
-**Tips:**
-• Make sure the backend server is running at ${API_BASE_URL}
-• Check that Cohere, Qdrant, and OpenAI API keys are configured
-• Try refreshing the page
+**Troubleshooting:**
+- Check if the backend server is running
+- Ensure your internet connection is stable
+- Try refreshing the page
 
-In the meantime, feel free to browse the book content directly!`,
+If the problem persists, browse the book content directly!`,
                 isStreaming: false,
+                error: true,
               }
             : msg
         )
@@ -314,7 +335,7 @@ In the meantime, feel free to browse the book content directly!`,
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\n/g, '<br />');
-    formatted = formatted.replace(/• /g, '<span class="bullet">•</span> ');
+    formatted = formatted.replace(/- /g, '<span class="bullet">-</span> ');
     return formatted;
   };
 
@@ -379,10 +400,10 @@ In the meantime, feel free to browse the book content directly!`,
           <div className={styles.chatHeader}>
             <div className={styles.headerInfo}>
               <span className={styles.headerTitle}>
-                {mode === 'selection' ? '🎯 Selection Mode' : '📚 RAG Assistant'}
+                {mode === 'selection' ? 'Selection Mode' : 'RAG Assistant'}
               </span>
               <span className={styles.headerStatus}>
-                {isTyping ? 'Thinking...' : 'Powered by Cohere + OpenAI'}
+                {isTyping ? 'Thinking...' : 'Secure RAG Chatbot'}
               </span>
             </div>
             <button
@@ -390,34 +411,38 @@ In the meantime, feel free to browse the book content directly!`,
               onClick={() => setIsOpen(false)}
               aria-label="Close chat"
             >
-              ×
+              x
             </button>
           </div>
 
-          {/* Module Filter */}
-          <div className={styles.filterBar}>
-            <select
-              value={moduleFilter}
-              onChange={(e) => setModuleFilter(e.target.value)}
-              className={styles.moduleSelect}
-            >
-              {modules.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            {selectedText && (
-              <button
-                className={`${styles.modeToggle} ${mode === 'selection' ? styles.active : ''}`}
-                onClick={() => setMode(mode === 'selection' ? 'book' : 'selection')}
-              >
-                {mode === 'selection' ? '🎯 Selection' : '📚 Book'}
-              </button>
-            )}
+          {/* Mode Indicator */}
+          <div className={styles.modeIndicator}>
+            <span className={mode === 'book' ? styles.activeMode : ''}>
+              Book Mode
+            </span>
+            <span className={mode === 'selection' ? styles.activeMode : ''}>
+              Selection Mode
+            </span>
           </div>
 
-          {/* Selected Text Preview */}
+          {/* Module Filter (only in Book mode) */}
+          {mode === 'book' && (
+            <div className={styles.filterBar}>
+              <select
+                value={moduleFilter}
+                onChange={(e) => setModuleFilter(e.target.value)}
+                className={styles.moduleSelect}
+              >
+                {modules.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Selected Text Preview (only in Selection mode) */}
           {selectedText && mode === 'selection' && (
             <div className={styles.selectionPreview}>
               <span className={styles.previewLabel}>Selected text:</span>
@@ -425,7 +450,10 @@ In the meantime, feel free to browse the book content directly!`,
                 "{selectedText.substring(0, 150)}
                 {selectedText.length > 150 ? '...' : ''}"
               </span>
-              <button onClick={() => setSelectedText('')} className={styles.clearSelection}>
+              <button
+                onClick={() => { setSelectedText(''); setMode('book'); }}
+                className={styles.clearSelection}
+              >
                 Clear
               </button>
             </div>
@@ -438,11 +466,11 @@ In the meantime, feel free to browse the book content directly!`,
                 key={message.id}
                 className={`${styles.message} ${
                   message.role === 'user' ? styles.userMessage : styles.assistantMessage
-                }`}
+                } ${message.error ? styles.errorMessage : ''}`}
               >
                 {message.mode && (
                   <div className={styles.messageMode}>
-                    {message.mode === 'selection_only' ? '🎯 Selection Mode' : '📚 Book Mode'}
+                    {message.mode === 'selection_only' ? 'Selection Mode' : 'Book Mode'}
                   </div>
                 )}
                 <div
@@ -456,7 +484,7 @@ In the meantime, feel free to browse the book content directly!`,
                     <span></span>
                   </div>
                 )}
-                {message.citations && message.citations.length > 0 && (
+                {message.citations && message.citations.length > 0 && message.mode === 'book' && (
                   <div className={styles.citations}>
                     <div className={styles.citationsHeader}>Sources ({message.citations.length})</div>
                     {message.citations.map((citation, i) => (
@@ -478,8 +506,8 @@ In the meantime, feel free to browse the book content directly!`,
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Questions */}
-          {messages.length <= 1 && (
+          {/* Quick Questions (only in Book mode and at start) */}
+          {messages.length <= 1 && mode === 'book' && (
             <div className={styles.quickQuestions}>
               {quickQuestions.map((q, i) => (
                 <button

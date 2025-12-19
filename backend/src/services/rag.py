@@ -1,15 +1,22 @@
 """
 RAG Query Service using OpenAI for chat completions.
-Supports both standard RAG mode and selection-only mode.
+
+SECURITY FEATURES:
+- Strict mode isolation (selection mode NEVER queries Qdrant)
+- Grounded responses only (no hallucination)
+- Clear mode indicators in responses
+- No credential exposure
+
+MODES:
+1. Book Mode - Full RAG with Cohere embeddings + Qdrant search + OpenAI
+2. Selection-Only Mode - Uses ONLY user-highlighted text (NO Qdrant)
 """
 
 import logging
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from dataclasses import dataclass, field
-import json
 
 from openai import OpenAI, AsyncOpenAI
-from openai.types.chat import ChatCompletionChunk
 
 from .embeddings import get_embedding_service, CohereEmbeddingService
 from .vectorstore import get_vectorstore_service, QdrantService
@@ -45,47 +52,61 @@ class RAGResponse:
 
 class RAGService:
     """
-    RAG Query Service with two modes:
-    1. Book Mode: Retrieves context from Qdrant vector store
-    2. Selection-Only Mode: Uses only the provided selected text
+    RAG Query Service with strict mode isolation.
+
+    CRITICAL: Selection-only mode NEVER queries Qdrant.
+    This is a constitutional requirement for deterministic retrieval behavior.
     """
 
-    SYSTEM_PROMPT_BOOK = """You are an expert AI assistant for a Physical AI & Humanoid Robotics educational book.
+    # System prompt for Book Mode (full RAG)
+    SYSTEM_PROMPT_BOOK = """You are an expert AI assistant for the Physical AI & Humanoid Robotics educational book.
 Your role is to help users understand concepts from the book content.
 
-IMPORTANT GUIDELINES:
-- Answer questions ONLY using the provided context from the book
-- If the context doesn't contain enough information, say so clearly
-- Always cite your sources by referencing the module, chapter, and section
+CRITICAL INSTRUCTIONS:
+1. Answer questions ONLY using the provided context from the book
+2. If the context doesn't contain enough information, clearly state:
+   "I couldn't find relevant information in the book to answer your question."
+3. NEVER hallucinate or make up information not in the context
+4. NEVER reference your training data - only use the provided context
+5. Always cite your sources by referencing the module, chapter, and section
+
+RESPONSE FORMAT:
 - Use clear, educational language appropriate for learners
 - Include relevant code examples from the context when applicable
 - Format your response with markdown for readability
+- When citing sources, use: [Module X: Chapter Title - Section Name]
 
-When citing sources, use this format: [Module X: Chapter Title - Section Name]"""
+TOPICS COVERED:
+- Module 1: ROS 2 Fundamentals (Nodes, Topics, Services, URDF)
+- Module 2: Digital Twin Simulation (Gazebo, Unity, Sensors)
+- Module 3: NVIDIA Isaac (Sim, Nav2, Perception)
+- Module 4: VLA (Vision-Language-Action, LLMs, Manipulation)"""
 
+    # System prompt for Selection-Only Mode (STRICT - no external context)
     SYSTEM_PROMPT_SELECTION = """You are an expert AI assistant helping users understand specific text they have selected from a Physical AI & Humanoid Robotics educational book.
 
-CRITICAL INSTRUCTIONS:
-- Answer ONLY based on the selected text provided
-- DO NOT use any external knowledge or make assumptions beyond the selected text
-- If the selected text doesn't contain enough information to answer, clearly state this
-- Explain the concepts in the selected text clearly and thoroughly
-- If there are code examples in the selection, explain them in detail
+CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE EXACTLY:
+1. Answer ONLY based on the selected text provided - NOTHING ELSE
+2. DO NOT use any external knowledge, training data, or assumptions
+3. DO NOT reference information outside the selected text
+4. If the selected text doesn't contain enough information to answer, respond EXACTLY:
+   "The selected text does not contain enough information to answer this."
+5. Explain only what is explicitly stated in the selection
 
-The user has specifically highlighted this text and wants to understand it better."""
+RESPONSE FORMAT:
+- Be concise and focused on the selection
+- If there are code examples in the selection, explain them
+- Use markdown for readability
+- Do not add information beyond what is in the selected text
+
+The user has specifically highlighted this text and wants to understand ONLY this selection."""
 
     def __init__(
         self,
         embedding_service: Optional[CohereEmbeddingService] = None,
         vectorstore_service: Optional[QdrantService] = None,
     ):
-        """
-        Initialize the RAG service.
-
-        Args:
-            embedding_service: Optional Cohere embedding service
-            vectorstore_service: Optional Qdrant vector store service
-        """
+        """Initialize the RAG service."""
         self.settings = get_settings()
         self.embedding_service = embedding_service or get_embedding_service()
         self.vectorstore_service = vectorstore_service or get_vectorstore_service()
@@ -106,6 +127,12 @@ The user has specifically highlighted this text and wants to understand it bette
         """
         Query the book using RAG (Retrieval-Augmented Generation).
 
+        This is BOOK MODE which:
+        1. Embeds the query using Cohere
+        2. Searches Qdrant for relevant chunks
+        3. Generates response using OpenAI with retrieved context
+        4. Returns answer with citations
+
         Args:
             query: User's question
             top_k: Number of chunks to retrieve
@@ -117,12 +144,12 @@ The user has specifically highlighted this text and wants to understand it bette
         Returns:
             RAGResponse with answer and citations
         """
+        logger.info(f"[BOOK MODE] Query: {query[:50]}...")
+
         # Step 1: Embed the query using Cohere
-        logger.info(f"Embedding query: {query[:50]}...")
         query_embedding = self.embedding_service.embed_query(query)
 
         # Step 2: Search Qdrant for relevant chunks
-        logger.info(f"Searching Qdrant with top_k={top_k}")
         search_results = self.vectorstore_service.search(
             query_embedding=query_embedding,
             top_k=top_k,
@@ -170,6 +197,8 @@ The user has specifically highlighted this text and wants to understand it bette
             temperature=temperature,
         )
 
+        logger.info(f"[BOOK MODE] Found {len(citations)} citations")
+
         return RAGResponse(
             answer=response["answer"],
             citations=citations,
@@ -188,8 +217,10 @@ The user has specifically highlighted this text and wants to understand it bette
         """
         Query using ONLY the selected text (Selection-Only Mode).
 
-        CRITICAL: This mode does NOT query Qdrant or use any external context.
-        Only the provided selected_text is used to answer the question.
+        CRITICAL SECURITY:
+        - This mode does NOT query Qdrant
+        - This mode does NOT use any external context
+        - Only the provided selected_text is used to answer the question
 
         Args:
             query: User's question about the selection
@@ -197,8 +228,13 @@ The user has specifically highlighted this text and wants to understand it bette
             temperature: OpenAI temperature for response generation
 
         Returns:
-            RAGResponse with answer (no citations from Qdrant)
+            RAGResponse with answer (no Qdrant citations)
         """
+        logger.info(f"[SELECTION MODE] Query about {len(selected_text)} chars of selected text")
+
+        # CRITICAL: NO Qdrant query here - only use selected_text
+        # This is a constitutional requirement
+
         if not selected_text or not selected_text.strip():
             return RAGResponse(
                 answer="No text was selected. Please highlight some text from the book and try again.",
@@ -208,9 +244,7 @@ The user has specifically highlighted this text and wants to understand it bette
                 context_used="",
             )
 
-        logger.info(f"Selection-only query: {query[:50]}... with {len(selected_text)} chars selected")
-
-        # Create a "citation" for the selected text
+        # Create a "citation" for the selected text (NOT from Qdrant)
         selection_citation = Citation(
             chunk_id="user_selection",
             content=selected_text,
@@ -221,7 +255,7 @@ The user has specifically highlighted this text and wants to understand it bette
             score=1.0,
         )
 
-        # Build context from selection only
+        # Build context from selection ONLY - NO QDRANT
         context = f"[User's Selected Text]\n{selected_text}"
 
         # Generate response using ONLY the selected text
@@ -231,6 +265,8 @@ The user has specifically highlighted this text and wants to understand it bette
             system_prompt=self.SYSTEM_PROMPT_SELECTION,
             temperature=temperature,
         )
+
+        logger.info("[SELECTION MODE] Response generated from selection only (no Qdrant)")
 
         return RAGResponse(
             answer=response["answer"],
@@ -264,7 +300,7 @@ The user has specifically highlighted this text and wants to understand it bette
             {"role": "system", "content": system_prompt},
             {
                 "role": "user",
-                "content": f"Context from the book:\n\n{context}\n\n---\n\nQuestion: {query}",
+                "content": f"Context:\n\n{context}\n\n---\n\nQuestion: {query}",
             },
         ]
 
@@ -286,9 +322,10 @@ The user has specifically highlighted this text and wants to understand it bette
             }
 
         except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
+            logger.error(f"OpenAI API error: {type(e).__name__}")
+            # SECURITY: Don't expose internal error details
             return {
-                "answer": f"I encountered an error while generating a response. Please try again. Error: {str(e)}",
+                "answer": "I encountered an error while generating a response. Please try again.",
                 "token_usage": {},
             }
 
@@ -339,7 +376,9 @@ The user has specifically highlighted this text and wants to understand it bette
         Yields:
             Chunks of the response as they are generated
         """
-        # Embed query and search
+        logger.info(f"[BOOK MODE STREAM] Query: {query[:50]}...")
+
+        # Embed query and search Qdrant
         query_embedding = self.embedding_service.embed_query(query)
         search_results = self.vectorstore_service.search(
             query_embedding=query_embedding,
@@ -368,7 +407,7 @@ The user has specifically highlighted this text and wants to understand it bette
             {"role": "system", "content": self.SYSTEM_PROMPT_BOOK},
             {
                 "role": "user",
-                "content": f"Context from the book:\n\n{context}\n\n---\n\nQuestion: {query}",
+                "content": f"Context:\n\n{context}\n\n---\n\nQuestion: {query}",
             },
         ]
 
@@ -394,8 +433,8 @@ The user has specifically highlighted this text and wants to understand it bette
                 yield f"- [{i+1}] {module}: {section}\n"
 
         except Exception as e:
-            logger.error(f"Streaming error: {e}")
-            yield f"\n\nError during streaming: {str(e)}"
+            logger.error(f"Streaming error: {type(e).__name__}")
+            yield "\n\nStreaming error occurred. Please try again."
 
     async def stream_query_selection(
         self,
@@ -406,20 +445,25 @@ The user has specifically highlighted this text and wants to understand it bette
         """
         Stream a response for selection-only query.
 
+        CRITICAL: This NEVER queries Qdrant - uses ONLY selected_text.
+
         Yields:
             Chunks of the response as they are generated
         """
+        logger.info(f"[SELECTION MODE STREAM] Query about {len(selected_text)} chars")
+
         if not selected_text or not selected_text.strip():
             yield "No text was selected. Please highlight some text from the book and try again."
             return
 
+        # CRITICAL: NO Qdrant query - only use selected_text
         context = f"[User's Selected Text]\n{selected_text}"
 
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT_SELECTION},
             {
                 "role": "user",
-                "content": f"Context from the book:\n\n{context}\n\n---\n\nQuestion: {query}",
+                "content": f"Context:\n\n{context}\n\n---\n\nQuestion: {query}",
             },
         ]
 
@@ -437,8 +481,8 @@ The user has specifically highlighted this text and wants to understand it bette
                     yield chunk.choices[0].delta.content
 
         except Exception as e:
-            logger.error(f"Streaming error: {e}")
-            yield f"\n\nError during streaming: {str(e)}"
+            logger.error(f"Selection streaming error: {type(e).__name__}")
+            yield "\n\nStreaming error occurred. Please try again."
 
 
 # Singleton instance

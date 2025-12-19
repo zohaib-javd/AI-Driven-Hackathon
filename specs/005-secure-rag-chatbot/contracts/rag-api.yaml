@@ -1,0 +1,427 @@
+openapi: 3.1.0
+info:
+  title: Secure RAG Chatbot API
+  description: |
+    API for the Physical AI & Humanoid Robotics book RAG chatbot.
+    Supports two modes:
+    - **Book Mode**: Retrieves context from Qdrant vector database
+    - **Selection Mode**: Uses only user-highlighted text (no Qdrant queries)
+  version: 1.0.0
+  contact:
+    name: Physical AI Book Team
+
+servers:
+  - url: /api/rag
+    description: RAG API endpoints
+
+tags:
+  - name: Query
+    description: Chat query operations
+  - name: Health
+    description: Health check endpoints
+  - name: Session
+    description: Session management
+
+paths:
+  /query:
+    post:
+      tags:
+        - Query
+      summary: Send a RAG query
+      description: |
+        Process a user query in either Book Mode or Selection Mode.
+
+        **Book Mode**: Query is embedded and searched against Qdrant.
+        Response includes citations from the book.
+
+        **Selection Mode**: Uses ONLY the provided selected_text.
+        NO vector database queries are made in this mode.
+      operationId: ragQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            examples:
+              bookMode:
+                summary: Book Mode query
+                value:
+                  query: "What is a ROS 2 topic?"
+                  mode: "book"
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+              selectionMode:
+                summary: Selection Mode query
+                value:
+                  query: "Explain this code"
+                  mode: "selection"
+                  selected_text: "def publisher_callback(self):\n    msg = String()\n    msg.data = 'Hello World'"
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+              filteredQuery:
+                summary: Book Mode with module filter
+                value:
+                  query: "How do sensors work?"
+                  mode: "book"
+                  module_filter: "Module 2: Digital Twin"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingSelection:
+                  summary: Missing selected_text for selection mode
+                  value:
+                    error: "validation_error"
+                    message: "selected_text required for selection mode"
+                    details: null
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                serviceDown:
+                  summary: External service unavailable
+                  value:
+                    error: "service_unavailable"
+                    message: "Service temporarily busy, please try again"
+                    details: null
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check health status of RAG service and dependencies
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                services:
+                  qdrant: true
+                  openai: true
+                  cohere: true
+                  database: true
+                timestamp: "2025-12-18T10:30:00Z"
+        '503':
+          description: Service unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "unhealthy"
+                services:
+                  qdrant: false
+                  openai: true
+                  cohere: true
+                  database: true
+                timestamp: "2025-12-18T10:30:00Z"
+
+  /session:
+    post:
+      tags:
+        - Session
+      summary: Create a new chat session
+      description: Initialize a new chat session for conversation tracking
+      operationId: createSession
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /session/{session_id}:
+    get:
+      tags:
+        - Session
+      summary: Get session history
+      description: Retrieve chat history for a session
+      operationId: getSession
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionHistoryResponse'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /modules:
+    get:
+      tags:
+        - Query
+      summary: List available modules
+      description: Get list of book modules for filtering
+      operationId: listModules
+      responses:
+        '200':
+          description: Module list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleListResponse'
+
+components:
+  schemas:
+    QueryRequest:
+      type: object
+      required:
+        - query
+        - mode
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: User's question
+          example: "What is URDF?"
+        mode:
+          $ref: '#/components/schemas/ChatMode'
+        selected_text:
+          type: string
+          maxLength: 5000
+          description: User-highlighted text (required for selection mode)
+          example: "ROS 2 uses DDS for communication"
+        session_id:
+          type: string
+          format: uuid
+          description: Optional session ID for conversation tracking
+        module_filter:
+          type: string
+          description: Filter results to specific module
+          example: "Module 1: ROS 2"
+
+    QueryResponse:
+      type: object
+      required:
+        - answer
+        - mode
+        - session_id
+        - processing_time_ms
+      properties:
+        answer:
+          type: string
+          description: Generated response
+          example: "URDF (Unified Robot Description Format) is an XML format..."
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+          description: Source citations (book mode only)
+          nullable: true
+        mode:
+          $ref: '#/components/schemas/ChatMode'
+        session_id:
+          type: string
+          format: uuid
+          description: Session ID
+        processing_time_ms:
+          type: integer
+          description: Processing time in milliseconds
+          example: 1234
+
+    Citation:
+      type: object
+      required:
+        - module
+        - chapter
+        - relevance_score
+        - content_snippet
+      properties:
+        module:
+          type: string
+          description: Book module
+          example: "Module 1: ROS 2"
+        chapter:
+          type: string
+          description: Chapter name
+          example: "Chapter 5: URDF"
+        section:
+          type: string
+          nullable: true
+          description: Section name
+          example: "Robot Description"
+        relevance_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Relevance score (0-1)
+          example: 0.87
+        content_snippet:
+          type: string
+          description: Excerpt from source
+          example: "URDF is an XML format used to describe..."
+
+    ChatMode:
+      type: string
+      enum:
+        - book
+        - selection
+      description: |
+        Chat operating mode:
+        - `book`: RAG mode, queries vector database
+        - `selection`: Uses only highlighted text, NO database queries
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - services
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+        services:
+          type: object
+          additionalProperties:
+            type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
+    SessionResponse:
+      type: object
+      required:
+        - session_id
+        - created_at
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+    SessionHistoryResponse:
+      type: object
+      required:
+        - session_id
+        - messages
+        - active_mode
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        active_mode:
+          $ref: '#/components/schemas/ChatMode'
+        module_filter:
+          type: string
+          nullable: true
+
+    ChatMessage:
+      type: object
+      required:
+        - id
+        - role
+        - content
+        - mode
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+        content:
+          type: string
+        mode:
+          $ref: '#/components/schemas/ChatMode'
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ModuleListResponse:
+      type: object
+      required:
+        - modules
+      properties:
+        modules:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              chapter_count:
+                type: integer
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: "validation_error"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "selected_text required for selection mode"
+        details:
+          type: object
+          nullable: true
+          description: Additional error details

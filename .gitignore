@@ -14,10 +14,22 @@ dist/
 .docusaurus/
 *.egg-info/
 
-# Environment files (keep .env.example)
+# Environment files - NEVER commit secrets
+# Keep only .env.example (which has empty values)
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+*.env
+!.env.example
+
+# Secrets and credentials
+**/secrets/
+**/*.pem
+**/*.key
+**/credentials.json
+**/service-account*.json
 
 # IDE
 .idea/

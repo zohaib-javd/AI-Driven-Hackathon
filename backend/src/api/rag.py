@@ -1,15 +1,25 @@
 """
 RAG API endpoints for the Physical AI RAG Chatbot.
-Implements both standard RAG queries and selection-only mode.
+
+SECURITY FEATURES:
+- Strict mode isolation (selection mode NEVER queries Qdrant)
+- Input validation with clear error messages
+- Sanitized error responses
+- No credential exposure in responses
+
+MODES:
+1. Book Mode (/query) - Full RAG with Qdrant vector search
+2. Selection-Only Mode (/query-selection) - Uses ONLY provided text
 """
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 import logging
 import json
 from datetime import datetime
+from enum import Enum
 
 from ..services.rag import get_rag_service, RAGResponse, Citation
 from ..services.embeddings import get_embedding_service
@@ -20,30 +30,128 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/rag", tags=["RAG"])
 
 
-# Request/Response Models
+# =============================================================================
+# Request/Response Models with Validation
+# =============================================================================
+
+class ChatMode(str, Enum):
+    """Available chat modes."""
+    BOOK = "book"
+    SELECTION = "selection_only"
+
+
 class RAGQueryRequest(BaseModel):
-    """Request for standard RAG query."""
-    query: str = Field(..., min_length=1, max_length=2000, description="User's question")
-    top_k: int = Field(default=5, ge=1, le=20, description="Number of chunks to retrieve")
-    module_filter: Optional[str] = Field(default=None, description="Filter by module (e.g., 'module-1-ros2')")
-    chapter_filter: Optional[str] = Field(default=None, description="Filter by chapter")
-    min_score: float = Field(default=0.5, ge=0, le=1, description="Minimum similarity score")
-    temperature: float = Field(default=0.7, ge=0, le=2, description="OpenAI temperature")
-    stream: bool = Field(default=False, description="Enable streaming response")
+    """Request for standard RAG query (Book Mode)."""
+    query: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="User's question (1-2000 characters)"
+    )
+    top_k: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Number of chunks to retrieve (1-20)"
+    )
+    module_filter: Optional[str] = Field(
+        default=None,
+        description="Filter by module (e.g., 'module-1-ros2')"
+    )
+    chapter_filter: Optional[str] = Field(
+        default=None,
+        description="Filter by chapter"
+    )
+    min_score: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        description="Minimum similarity score (0-1)"
+    )
+    temperature: float = Field(
+        default=0.7,
+        ge=0,
+        le=2,
+        description="OpenAI temperature (0-2)"
+    )
+    stream: bool = Field(
+        default=False,
+        description="Enable streaming response"
+    )
+
+    @field_validator('query')
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        """Validate and sanitize query."""
+        v = v.strip()
+        if not v:
+            raise ValueError("Query cannot be empty")
+        return v
 
 
 class SelectionQueryRequest(BaseModel):
-    """Request for selection-only RAG query."""
-    query: str = Field(..., min_length=1, max_length=2000, description="User's question about the selection")
-    selected_text: str = Field(..., min_length=1, max_length=10000, description="User's selected/highlighted text")
-    temperature: float = Field(default=0.7, ge=0, le=2, description="OpenAI temperature")
-    stream: bool = Field(default=False, description="Enable streaming response")
+    """
+    Request for selection-only RAG query.
+
+    CRITICAL: This mode does NOT query Qdrant or use any book context.
+    Only the provided selected_text is used to answer the question.
+    """
+    query: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="User's question about the selection (1-2000 characters)"
+    )
+    selected_text: str = Field(
+        ...,
+        min_length=10,
+        max_length=5000,
+        description="User's selected/highlighted text (10-5000 characters)"
+    )
+    temperature: float = Field(
+        default=0.7,
+        ge=0,
+        le=2,
+        description="OpenAI temperature (0-2)"
+    )
+    stream: bool = Field(
+        default=False,
+        description="Enable streaming response"
+    )
+
+    @field_validator('query')
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        """Validate and sanitize query."""
+        v = v.strip()
+        if not v:
+            raise ValueError("Query cannot be empty")
+        return v
+
+    @field_validator('selected_text')
+    @classmethod
+    def validate_selected_text(cls, v: str) -> str:
+        """Validate selected text."""
+        v = v.strip()
+        if len(v) < 10:
+            raise ValueError("Selected text must be at least 10 characters")
+        if len(v) > 5000:
+            raise ValueError("Selected text cannot exceed 5000 characters")
+        return v
 
 
 class EmbedRequest(BaseModel):
     """Request to embed text."""
-    texts: List[str] = Field(..., min_length=1, max_length=100, description="Texts to embed")
-    input_type: str = Field(default="search_document", description="Cohere input type")
+    texts: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Texts to embed (1-100 items)"
+    )
+    input_type: str = Field(
+        default="search_document",
+        description="Cohere input type (search_document or search_query)"
+    )
 
 
 class EmbedResponse(BaseModel):
@@ -78,7 +186,10 @@ class RAGQueryResponse(BaseModel):
 class IngestRequest(BaseModel):
     """Request to ingest documents."""
     docs_path: str = Field(..., description="Path to the docs directory")
-    single_file: Optional[str] = Field(default=None, description="Optional single file to ingest")
+    single_file: Optional[str] = Field(
+        default=None,
+        description="Optional single file to ingest"
+    )
 
 
 class IngestResponse(BaseModel):
@@ -91,19 +202,27 @@ class IngestResponse(BaseModel):
     duration_seconds: float = 0
 
 
-# Endpoints
+# =============================================================================
+# API Endpoints
+# =============================================================================
 
 @router.post("/query", response_model=RAGQueryResponse)
 async def rag_query(request: RAGQueryRequest):
     """
     Query the book using RAG (Retrieval-Augmented Generation).
 
-    This endpoint:
-    1. Embeds the query using Cohere
+    **Book Mode** - This endpoint:
+    1. Embeds the query using Cohere (embed-english-v3.0)
     2. Searches Qdrant for relevant chunks
     3. Generates a response using OpenAI with retrieved context
+    4. Returns answer with citations
 
     Use `module_filter` to restrict search to a specific module.
+
+    **Response Behavior:**
+    - If no relevant content found: Returns "I couldn't find relevant information..."
+    - Always includes citations when content is found
+    - Never hallucinate or use information outside the book
     """
     start_time = datetime.utcnow()
 
@@ -145,9 +264,16 @@ async def rag_query(request: RAGQueryRequest):
             processing_time_ms=processing_time,
         )
 
+    except ValueError as e:
+        # Input validation errors - safe to expose
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"RAG query error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Internal errors - sanitize
+        logger.error(f"RAG query error: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Service temporarily unavailable. Please try again."
+        )
 
 
 @router.post("/query-selection", response_model=RAGQueryResponse)
@@ -155,10 +281,20 @@ async def rag_query_selection(request: SelectionQueryRequest):
     """
     Query using ONLY the selected text (Selection-Only Mode).
 
-    CRITICAL: This endpoint does NOT query Qdrant or use any book context.
-    It answers ONLY based on the provided selected_text.
+    **CRITICAL SECURITY:**
+    - This endpoint does NOT query Qdrant
+    - It does NOT use any book context
+    - It answers ONLY based on the provided `selected_text`
 
-    Use this when users highlight text and want to understand just that selection.
+    **Use Case:**
+    When users highlight text and want to understand just that selection,
+    without any additional context from the book.
+
+    **Response Behavior:**
+    - If selected text doesn't contain enough info to answer:
+      Returns "The selected text does not contain enough information to answer this."
+    - Never uses information outside the selected text
+    - No citations from Qdrant (only the selection itself)
     """
     start_time = datetime.utcnow()
 
@@ -168,6 +304,7 @@ async def rag_query_selection(request: SelectionQueryRequest):
     try:
         rag_service = get_rag_service()
 
+        # CRITICAL: This ONLY uses selected_text, NEVER queries Qdrant
         response = await rag_service.query_selection_async(
             query=request.query,
             selected_text=request.selected_text,
@@ -197,9 +334,16 @@ async def rag_query_selection(request: SelectionQueryRequest):
             processing_time_ms=processing_time,
         )
 
+    except ValueError as e:
+        # Input validation errors - safe to expose
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Selection query error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Internal errors - sanitize
+        logger.error(f"Selection query error: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Service temporarily unavailable. Please try again."
+        )
 
 
 async def rag_query_stream(request: RAGQueryRequest):
@@ -217,8 +361,8 @@ async def rag_query_stream(request: RAGQueryRequest):
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
-            logger.error(f"Stream error: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            logger.error(f"Stream error: {type(e).__name__}")
+            yield f"data: {json.dumps({'error': 'Streaming error occurred'})}\n\n"
 
     return StreamingResponse(
         generate(),
@@ -239,8 +383,8 @@ async def rag_query_selection_stream(request: SelectionQueryRequest):
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
-            logger.error(f"Selection stream error: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            logger.error(f"Selection stream error: {type(e).__name__}")
+            yield f"data: {json.dumps({'error': 'Streaming error occurred'})}\n\n"
 
     return StreamingResponse(
         generate(),
@@ -254,6 +398,7 @@ async def embed_texts(request: EmbedRequest):
     Generate embeddings for texts using Cohere.
 
     Useful for testing embeddings or custom similarity searches.
+    Uses embed-english-v3.0 model (1024 dimensions).
     """
     try:
         embedding_service = get_embedding_service()
@@ -267,8 +412,11 @@ async def embed_texts(request: EmbedRequest):
         )
 
     except Exception as e:
-        logger.error(f"Embed error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Embed error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=500,
+            detail="Embedding service temporarily unavailable"
+        )
 
 
 @router.post("/ingest", response_model=IngestResponse)
@@ -285,7 +433,7 @@ async def ingest_documents(
     3. Generates embeddings with Cohere
     4. Stores vectors in Qdrant
 
-    For large document sets, this runs in the background.
+    For large document sets, this may take several minutes.
     """
     try:
         pipeline = IngestionPipeline(request.docs_path)
@@ -311,9 +459,14 @@ async def ingest_documents(
                 duration_seconds=result.get("duration_seconds", 0),
             )
 
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Path not found: {request.docs_path}")
     except Exception as e:
-        logger.error(f"Ingest error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Ingest error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=500,
+            detail="Ingestion failed. Check logs for details."
+        )
 
 
 @router.get("/stats")
@@ -322,6 +475,7 @@ async def get_stats():
     Get statistics about the RAG system.
 
     Returns information about the vector store and configuration.
+    Does NOT expose any credential values.
     """
     try:
         from ..services.vectorstore import get_vectorstore_service
@@ -345,13 +499,17 @@ async def get_stats():
                 "chunk_size": settings.chunk_size,
                 "chunk_overlap": settings.chunk_overlap,
             },
+            "modes": {
+                "book": "Full RAG with Qdrant vector search",
+                "selection_only": "Uses ONLY provided text (no Qdrant)",
+            },
         }
 
     except Exception as e:
-        logger.error(f"Stats error: {e}")
+        logger.error(f"Stats error: {type(e).__name__}")
         return {
             "status": "error",
-            "error": str(e),
+            "message": "Unable to fetch stats",
         }
 
 
@@ -374,5 +532,8 @@ async def clear_vectorstore():
             raise HTTPException(status_code=500, detail="Failed to clear vector store")
 
     except Exception as e:
-        logger.error(f"Clear error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Clear error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to clear vector store"
+        )

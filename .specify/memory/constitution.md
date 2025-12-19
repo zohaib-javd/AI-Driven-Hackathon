@@ -1,241 +1,219 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version Change: 1.0.0 → 1.0.1 (PATCH)
-Bump Rationale: Clarification and reinforcement of existing principles; no new principles added or removed
+Version Change: 1.0.1 → 2.0.0 (MAJOR)
+Bump Rationale: Major governance redefinition with security-first architecture, new AI behavior rules,
+and strict secret handling requirements. This fundamentally changes project principles.
 
-Modified Principles: None renamed
-Added Sections: None
-Removed Sections: None
+Modified Principles:
+- "Framework Standards" → "Security Architecture Standards" (redefined)
+- "Code Quality Standards" → "Secret Management Standards" (redefined)
+- "Educational Principles" → "AI Behavior Rules" (redefined)
+- "Documentation Reference Standards" → "Selection-Only Mode Enforcement" (redefined)
+
+Added Sections:
+- Core Principles (5 new security-focused principles)
+- AI Behavior Rules (4 mandatory rules)
+- Security Standards (5 standards)
+- Technology Constraints (mandatory stack)
+- Trust Boundaries (frontend/backend separation)
+
+Removed Sections:
+- Educational Principles (moved to supplementary)
+- Pedagogical Standards (moved to supplementary)
+- Risk Management (consolidated into Security Standards)
 
 Templates Verified:
-✅ .specify/templates/plan-template.md - Constitution Check section compatible
-✅ .specify/templates/spec-template.md - Requirements and success criteria aligned
-✅ .specify/templates/tasks-template.md - Task organization compatible with project structure
+✅ .specify/templates/plan-template.md - Constitution Check section compatible with security gates
+✅ .specify/templates/spec-template.md - Requirements section supports security criteria
+✅ .specify/templates/tasks-template.md - Task structure supports security validation phases
 
 Follow-up TODOs: None
 -->
 
-# Physical AI & Humanoid Robotics Project Constitution
+# Physical AI & Humanoid Robotics — Secure RAG Chatbot + Book Platform
+
+## Constitution
+
+**Version**: 2.0.0 | **Ratified**: 2025-12-15 | **Last Amended**: 2025-12-18
 
 ## Mission Statement
 
-To create a comprehensive, technically accurate, and hands-on book on Physical AI and Humanoid Robotics that enables both intermediate and advanced learners to understand, simulate, and deploy embodied AI systems using modern robotics frameworks, accompanied by an integrated RAG chatbot for interactive learning.
+To create a comprehensive, technically accurate book on Physical AI and Humanoid Robotics with an integrated RAG chatbot that maintains **production-grade security posture**, **zero secret leakage**, and **deterministic AI behavior** throughout all operations.
 
-## Core Values
+## Core Principles
 
-- **Technical Excellence**: All content MUST be grounded in official documentation and validated in real environments
-- **Educational Clarity**: Complex concepts MUST be presented with clear learning objectives and practical examples
-- **Reproducible Learning**: Every concept MUST be accompanied by executable code and simulation steps
-- **Modular Architecture**: Components MUST be designed for independent learning while maintaining cohesive flow
-- **Open Standards**: MUST follow industry-standard frameworks and protocols (ROS 2, Gazebo, NVIDIA Isaac, Unity)
+### Principle 1: Security-First Architecture
 
-## Technical Principles
+All system design decisions MUST prioritize security over convenience. The architecture MUST enforce clear separation between trusted (backend) and untrusted (frontend) components. Security controls MUST be implemented at every layer.
 
-### 1. Framework Standards
+**Rationale**: A RAG chatbot handling book content requires robust security to prevent unauthorized access, secret exposure, and ensure AI responses remain grounded and safe.
 
-- Primary ROS 2 Humble Hawksbill distribution for all robotic systems
-- Gazebo Garden for physics simulation and testing
-- NVIDIA Isaac Sim for advanced perception and manipulation simulation
-- Unity for visualization and extended reality applications
-- OpenAI API integration for advanced language understanding
+### Principle 2: Zero Hardcoded Secrets
 
-### 2. Code Quality Standards
+No credentials, API keys, tokens, or sensitive configuration values MUST ever appear in source code, prompts, or client-side code. All secrets MUST be injected exclusively via environment variables at runtime.
 
-- All code examples MUST be validated in target environments (ROS 2 Humble + Gazebo Garden + Isaac Sim)
-- MUST follow official style guides for each framework (PEP 8 for Python, Google C++ Style Guide for C++)
-- MUST include comprehensive error handling and edge case considerations
-- MUST maintain backward compatibility where possible
-- MUST include performance benchmarks and resource usage information
+**Rationale**: Hardcoded secrets are the leading cause of security breaches. Environment variable injection ensures secrets never enter version control or client bundles.
 
-### 3. Educational Principles
+### Principle 3: Grounded AI Responses Only
 
-- MUST follow "Learn → Simulate → Deploy" pedagogy for each concept
-- MUST include learning objectives at the beginning of each chapter
-- MUST provide hands-on examples with step-by-step execution instructions
-- MUST include visual diagrams and flow explanations for complex systems
-- MUST ensure progressive difficulty with clear prerequisites
+All AI-generated responses MUST be grounded in retrieved content from the book or user-selected text. The system MUST NOT hallucinate, fabricate citations, or generate responses without supporting context.
 
-### 4. Documentation Reference Standards
+**Rationale**: A RAG chatbot must provide accurate, verifiable answers. Ungrounded responses undermine trust and educational value.
 
-- All robotics and AI claims MUST reference official documentation (ROS 2, NVIDIA Isaac, Gazebo, Unity, OpenAI, etc.)
-- Technical specifications MUST be verified against source implementations
-- Mathematical concepts MUST be explained with derivations where appropriate
+### Principle 4: Deterministic Retrieval Behavior
 
-## Project Structure
+The retrieval system MUST behave predictably and consistently. Selection-only mode MUST strictly use only user-selected text without any Qdrant queries. Book mode MUST query Qdrant for context.
 
-### 1. Book Architecture
+**Rationale**: Predictable retrieval behavior enables testing, debugging, and user trust. Mode confusion could lead to information leakage or incorrect responses.
 
-- Four main modules with 8-12 chapters each (minimum 40 total chapters)
-- Docusaurus MDX structure for web deployment
-- GitHub Pages compatible build system
-- Cross-references between related concepts
-- Searchable and navigable documentation
+### Principle 5: Clear Trust Boundaries
 
-### 2. Module Breakdown
+Frontend code MUST be treated as untrusted. Backend MUST validate all inputs. Secrets MUST never cross trust boundaries. The frontend MUST NOT have access to any API keys or credentials.
+
+**Rationale**: Frontend code runs in user browsers and can be inspected or modified. Only the backend can be trusted with secrets and critical operations.
+
+## AI Behavior Rules
+
+These rules govern how AI components (LLMs, agents) MUST behave within this system:
+
+### Rule 1: NEVER Assume Credentials Exist
+
+AI agents MUST NOT assume that API keys, database connections, or other credentials are available. If a credential is required for an operation, the agent MUST explicitly check for its presence and fail gracefully if missing.
+
+### Rule 2: ALWAYS Request Credentials Explicitly
+
+When credentials are needed, AI agents MUST request them through proper channels (environment variables, secure configuration). Agents MUST NOT attempt to generate, guess, or derive credentials.
+
+### Rule 3: NEVER Embed Secrets Into Code or Prompts
+
+AI agents MUST NOT include secrets in generated code, prompts sent to other services, logs, error messages, or any output that could be exposed. All secret references MUST use environment variable placeholders.
+
+### Rule 4: ALL Credentials via Environment Variables
+
+Every credential MUST be loaded from environment variables at runtime. Configuration files MAY reference environment variable names but MUST NOT contain actual secret values.
+
+## Security Standards
+
+### Standard 1: Environment Variable-Only Secret Handling
+
+- Secrets MUST be loaded from environment variables using secure patterns
+- Default values for secrets MUST be empty strings, not placeholder values
+- Secret names MUST follow the pattern: `SERVICE_API_KEY`, `DATABASE_URL`
+- The `.env.example` file MUST document required variables without values
+
+### Standard 2: Fail-Fast on Missing Secrets
+
+- Application MUST validate all required secrets on startup
+- Missing required secrets MUST cause immediate startup failure with clear error messages
+- Error messages MUST identify which secret is missing without exposing other secrets
+- Graceful degradation MUST NOT be used for critical security credentials
+
+### Standard 3: Frontend Secret Isolation
+
+- Frontend code MUST NOT contain, reference, or access any secrets
+- API calls from frontend MUST go through backend proxy endpoints
+- Frontend MUST NOT have direct access to Cohere, OpenAI, Qdrant, or Neon
+- Backend MUST be the sole holder of all external service credentials
+
+### Standard 4: Backend Secret Validation
+
+- Backend MUST validate presence of all secrets before accepting requests
+- Health check endpoints MUST verify secret availability (not values)
+- Secrets MUST be loaded once at startup and cached in memory
+- Secret refresh MUST require application restart (no hot-reload)
+
+### Standard 5: Selection-Only Mode Isolation
+
+- When in selection-only mode, the system MUST NOT query Qdrant
+- Selected text MUST be passed directly to LLM without vector retrieval
+- Mode selection MUST be explicit in API requests
+- Backend MUST enforce mode isolation regardless of frontend behavior
+
+## Technology Constraints
+
+The following technology stack is MANDATORY and MUST NOT be substituted without constitutional amendment:
+
+| Component | Technology | Version/Model |
+|-----------|------------|---------------|
+| Embeddings | Cohere | embed-english-v3.0 (1024 dim) |
+| Vector DB | Qdrant Cloud | Latest stable |
+| Metadata DB | Neon Serverless Postgres | Latest stable |
+| Reasoning/Chat | OpenAI | gpt-4-turbo-preview |
+| Frontend | Docusaurus (React) | v3.x |
+| Backend | FastAPI (Python) | Python 3.11+ |
+
+**Rationale**: Fixed technology stack ensures consistent security analysis, known vulnerability surfaces, and predictable behavior across deployments.
+
+## Success Criteria
+
+### Security Success
+
+- [ ] Zero secret leakage in source code, logs, or client bundles
+- [ ] All secrets injected via environment variables only
+- [ ] Frontend has zero access to any API credentials
+- [ ] Backend validates all secrets on startup (fail-fast)
+- [ ] Selection-only mode strictly isolated from Qdrant
+
+### Functional Success
+
+- [ ] RAG chatbot provides grounded responses with citations
+- [ ] Book mode correctly queries Qdrant for context
+- [ ] Selection-only mode uses only provided text
+- [ ] All 4 book modules accessible and searchable
+- [ ] Voice input processed securely (if enabled)
+
+### Operational Success
+
+- [ ] Production deployment follows security standards
+- [ ] Monitoring detects secret access anomalies
+- [ ] Incident response procedures documented
+- [ ] Regular security audits scheduled
+
+## Governance
+
+### Amendment Procedure
+
+1. Proposed changes MUST be documented with security impact analysis
+2. Security-related changes MUST undergo security review
+3. Major changes (principles, security standards) require explicit approval
+4. Version MUST be incremented according to semantic versioning:
+   - **MAJOR**: Principle changes, security standard modifications, trust boundary changes
+   - **MINOR**: New guidance, additional standards, expanded coverage
+   - **PATCH**: Clarifications, typo fixes, non-security refinements
+
+### Compliance Review
+
+- All code changes MUST be reviewed against security standards
+- Secrets MUST be audited before each deployment
+- Selection-only mode MUST be tested with each release
+- Non-compliance MUST block deployment until resolved
+
+### Versioning Policy
+
+- Constitution version MUST be tracked in this document
+- All dependent artifacts MUST reference constitution version
+- Breaking changes MUST increment MAJOR version
+- Changelog MUST document all amendments
+
+---
+
+## Supplementary: Educational Standards
+
+*These standards supplement the core security principles for book content quality:*
+
+- All code examples MUST be validated in target environments
+- Learning objectives MUST be stated at chapter beginnings
+- "Learn → Simulate → Deploy" pedagogy MUST be followed
+- Technical claims MUST reference official documentation
+
+## Supplementary: Book Module Structure
 
 - **Module 1**: ROS 2 Fundamentals and Robotic Systems
 - **Module 2**: Simulation Environments and Digital Twins
 - **Module 3**: NVIDIA Isaac and Advanced Perception
 - **Module 4**: Vision-Language-Action Models and Embodied AI
 
-### 3. Capstone Integration
+---
 
-- End-to-end pipeline: Voice → LLM Planning → ROS 2 Actions → Navigation → Perception → Manipulation
-- Real-world scenario implementation
-- Performance evaluation metrics
-- Troubleshooting and debugging guides
-
-## Content Standards
-
-### 1. Terminology Consistency
-
-- Standardized ROS graph terminology (nodes, topics, services, actions)
-- Consistent namespace conventions
-- Unified URDF and XACRO component definitions
-- Clear digital twin and VLA model definitions
-- Glossary of terms with precise definitions
-
-### 2. Chapter Requirements
-
-Each chapter MUST include:
-
-- Learning objectives
-- Prerequisites and system requirements
-- Code examples with explanations
-- Simulation setup and execution steps
-- At least one robotics diagram or flow explanation
-- Exercises and challenges
-- Further reading resources
-
-### 3. Validation Standards
-
-- All code samples MUST be tested in target environments
-- Simulation scenarios MUST be validated for expected behavior
-- Performance benchmarks MUST be documented
-- Resource consumption measurements MUST be included
-- Compatibility matrices MUST be maintained
-
-## Technology Stack
-
-### 1. Primary Technologies
-
-- **ROS 2**: Humble Hawksbill distribution
-- **Simulation**: Gazebo Garden, NVIDIA Isaac Sim
-- **Framework**: Python 3.10+, C++17
-- **Web Platform**: Docusaurus v3.x with MDX support
-- **Deployment**: GitHub Pages with custom domain support
-
-### 2. RAG Chatbot Stack
-
-- **Backend**: FastAPI for API layer
-- **Database**: Neon Postgres for metadata storage
-- **Vector Store**: Qdrant for embedding storage
-- **LLM Integration**: OpenAI Agents/ChatKit SDK
-- **Development**: Docker containers for environment consistency
-
-### 3. Tooling Standards
-
-- **Version Control**: Git with conventional commits
-- **Documentation**: Markdown with MDX extensions
-- **Testing**: Pytest for Python, GoogleTest for C++
-- **CI/CD**: GitHub Actions for validation and deployment
-- **Dependency Management**: pip/conda for Python, colcon for ROS packages
-
-## Quality Assurance
-
-### 1. Accuracy Standards
-
-- All claims MUST reference official documentation
-- Technical specifications MUST be verified against source implementations
-- Mathematical concepts MUST be explained with derivations where appropriate
-- Code examples MUST be validated in production-like environments
-- Regular updates MUST align with framework version changes
-
-### 2. Pedagogical Standards
-
-- Concepts MUST be introduced in logical progression
-- Prerequisites MUST be clearly stated and enforced
-- Hands-on exercises MUST reinforce theoretical concepts
-- Real-world applications MUST be demonstrated
-- Assessment mechanisms MUST be included
-
-### 3. Accessibility Standards
-
-- Screen reader compatible documentation
-- Code examples with syntax highlighting
-- Visual diagrams with alt text descriptions
-- Multiple learning modalities accommodated
-- Internationalization considerations
-
-## Success Metrics
-
-### 1. Technical Success
-
-- 100% of code examples compile and execute in target environments
-- Book builds successfully in Docusaurus without errors
-- RAG chatbot achieves 90%+ grounding accuracy on book content
-- Capstone robot completes full Voice-to-Action pipeline in simulation
-- All modules form coherent, navigable learning paths
-
-### 2. Educational Success
-
-- Learners can reproduce all examples from scratch
-- Simulation scenarios behave as documented
-- Conceptual understanding measured through practical application
-- Community adoption and contribution metrics
-- Feedback integration mechanisms
-
-### 3. Operational Success
-
-- Automated testing pipeline validates all components
-- Continuous integration ensures consistency
-- Documentation remains current with framework updates
-- Community contributions welcomed and integrated
-- Long-term maintenance roadmap established
-
-## Risk Management
-
-### 1. Technical Risks
-
-- Framework version compatibility changes
-- Simulation environment availability
-- Hardware-specific limitations
-- Performance scaling issues
-
-### 2. Educational Risks
-
-- Concept complexity exceeding target audience
-- Prerequisite gaps in learner knowledge
-- Changing industry standards
-- Resource availability for practical exercises
-
-### 3. Mitigation Strategies
-
-- Regular validation against latest framework versions
-- Multiple simulation environment support
-- Comprehensive prerequisite documentation
-- Community feedback integration process
-- Flexible architecture for future enhancements
-
-## Governance
-
-This constitution serves as the foundational document for the Physical AI & Humanoid Robotics project, establishing the core principles and guidelines that govern all aspects of development, content creation, and educational delivery.
-
-### Amendment Procedure
-
-1. Proposed changes MUST be documented with rationale
-2. Changes MUST undergo community review
-3. Major changes require consensus approval
-4. Version MUST be incremented according to semantic versioning:
-   - **MAJOR**: Backward incompatible governance/principle removals or redefinitions
-   - **MINOR**: New principle/section added or materially expanded guidance
-   - **PATCH**: Clarifications, wording, typo fixes, non-semantic refinements
-
-### Compliance Review
-
-- All project decisions MUST align with these principles
-- Regular audits MUST verify adherence to standards
-- Non-compliance MUST be addressed and documented
-
-**Version**: 1.0.1 | **Ratified**: 2025-12-15 | **Last Amended**: 2025-12-16
+*This constitution establishes the security-first foundation for the Physical AI & Humanoid Robotics platform. All development, deployment, and operational decisions MUST align with these principles.*

@@ -100,6 +100,35 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+/* Mode Indicator */
+.modeIndicator {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 12px;
+  background: var(--ifm-color-emphasis-50, #fafafa);
+  border-bottom: 1px solid var(--ifm-color-emphasis-200, #e0e0e0);
+  font-size: 12px;
+}
+
+.modeIndicator span {
+  padding: 4px 12px;
+  border-radius: 16px;
+  color: var(--ifm-color-emphasis-500, #888888);
+  transition: all 0.2s;
+}
+
+.activeMode {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white !important;
+  font-weight: 600;
+}
+
+/* Error Message */
+.errorMessage {
+  border-left: 3px solid #ff6b6b;
+}
+
 /* Filter Bar */
 .filterBar {
   display: flex;
