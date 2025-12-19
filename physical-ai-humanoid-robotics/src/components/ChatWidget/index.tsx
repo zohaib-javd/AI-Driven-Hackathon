@@ -790,6 +790,7 @@ Topics I can help with:
 Just type your question and I'll find the relevant information from the book!`;
 }
 
+// Trigger deployment
 export default function ChatWidget(): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
