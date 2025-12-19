@@ -89,9 +89,9 @@ flowchart LR
     end
 
     subgraph Output["Output"]
-        Odom[/visual_slam/tracking/odometry]
-        PoseOut[/visual_slam/tracking/vo_pose]
-        MapOut[/visual_slam/vis/landmarks_cloud]
+        Odom["visual_slam/tracking/odometry"]
+        PoseOut["visual_slam/tracking/vo_pose"]
+        MapOut["visual_slam/vis/landmarks_cloud"]
     end
 
     Left --> Rectify

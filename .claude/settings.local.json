@@ -52,7 +52,20 @@
       "SlashCommand(/sp.specify)",
       "Bash(dir:*)",
       "SlashCommand(/sp.plan)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(railway --version:*)",
+      "Bash(npx @railway/cli:*)",
+      "Bash(RAILWAY_TOKEN=02ae07f0-60bf-475c-bb67-2bb5a32a6892 npx @railway/cli whoami:*)",
+      "Bash(curl:*)",
+      "Bash(git -C \"C:\\\\Users\\\\Zohaib\\\\Desktop\\\\Hackathon GIAIC\\\\Hackathon01\" status --short)",
+      "Bash(git -C \"C:\\\\Users\\\\Zohaib\\\\Desktop\\\\Hackathon GIAIC\\\\Hackathon01\" ls-tree:*)",
+      "Bash(findstr:*)",
+      "Bash(git -C \"C:\\\\Users\\\\Zohaib\\\\Desktop\\\\Hackathon GIAIC\\\\Hackathon01\" log --oneline -1 origin/005-secure-rag-chatbot)",
+      "mcp__vercel__list_projects",
+      "mcp__vercel__get_project",
+      "mcp__vercel__list_deployments"
     ]
   }
 }
