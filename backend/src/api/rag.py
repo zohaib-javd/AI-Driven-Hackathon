@@ -536,7 +536,7 @@ async def ingest_inline(request: IngestInlineRequest):
 
                 # Generate embeddings and store
                 for i, doc_chunk in enumerate(document_chunks):
-                    chunk_id = f"{source_path}_{i}_{uuid.uuid4().hex[:8]}"
+                    chunk_id = str(uuid.uuid4())
                     embedding = embedding_service.embed_query(doc_chunk.content)
 
                     vectorstore.upsert_chunks(
