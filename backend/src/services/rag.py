@@ -160,7 +160,7 @@ The user has specifically highlighted this text and wants to understand ONLY thi
 
         if not search_results:
             return RAGResponse(
-                answer="I couldn't find relevant information in the book to answer your question. Could you try rephrasing or asking about a different topic covered in the Physical AI & Humanoid Robotics modules?",
+                answer="I couldn't find relevant information in the book to answer your question. Could you try rephrasing or asking about a different topic covered in the Physical AI & Humanoid Robotics modules?\n\nNote: The knowledge base might be empty. Please ensure the book content has been ingested.",
                 citations=[],
                 mode="book",
                 query=query,
