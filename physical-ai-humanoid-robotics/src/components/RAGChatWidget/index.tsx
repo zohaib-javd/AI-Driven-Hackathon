@@ -15,7 +15,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styles from './styles.module.css';
 
 // API Configuration - Backend proxy only (NO direct external API calls)
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Production: Railway backend; Development: localhost
+const API_BASE_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+  ? 'https://ai-driven-hackathon-production.up.railway.app'
+  : 'http://localhost:8000';
 
 // Types
 interface Citation {
